@@ -118,7 +118,6 @@ class RankingService {
 
         let posicaoAtual = 1;
         let ultimaPontuacao = null;
-        let jogadoresProcessados = 0;
 
         rankingData.forEach((r) => {
 
@@ -126,14 +125,13 @@ class RankingService {
                 posicaoAtual = 1;
             }
             else if (r.melhorLinha.pontos < ultimaPontuacao) {
-                posicaoAtual = jogadoresProcessados + 1;
+                posicaoAtual++;
             }
 
             r.posicao = posicaoAtual;
-
-            jogadoresProcessados++;
             ultimaPontuacao = r.melhorLinha.pontos;
         });
+
 
 
         await RankingRodada.findOneAndUpdate(
