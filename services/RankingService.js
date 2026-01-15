@@ -177,10 +177,11 @@ class RankingService {
                 };
             }
 
-            const somaCartela = (a.palpites || []).reduce(
-                (soma, linha) => soma + (linha.pontosLinha || 0),
-                0
-            );
+            const pontosRodada = a.desempenhoRodada?.pontuacaoRodada || 0;
+
+            acumulado[id].totalPontos += pontosRodada;
+            acumulado[id].totalApostas++;
+
 
             acumulado[id].totalPontos += somaCartela;
             acumulado[id].totalApostas++;
