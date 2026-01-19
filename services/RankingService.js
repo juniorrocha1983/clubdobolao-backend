@@ -47,7 +47,7 @@ class RankingService {
     /* ======================================================
        🏁 RANKING DA RODADA
        ====================================================== */
-   async atualizarRankingRodada(rodadaId) {
+    async atualizarRankingRodada(rodadaId) {
 
         const rodada = await Rodada.findById(rodadaId);
         if (!rodada) throw new Error("Rodada não encontrada");
@@ -144,8 +144,47 @@ class RankingService {
     /* ======================================================
        🏆 RANKING GERAL — soma todas as linhas
        ====================================================== */
- 
+    async atualizarRankingGeral() {
 
+        const apostas = await Aposta.find({
+            status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
+        }).populate("usuario", "apelido timeCoracao");
+
+        const acumulado = {};
+
+        for (const a of apostas) {
+
+            const id = a.usuario?._id?.toString();
+            if (!id) continue;
+
+            if (!acumulado[id]) {
+                acumulado[id] = {
+                    usuarioId: id,
+                    apelido: a.usuario.apelido,
+                    timeCoracao: a.usuario.timeCoracao,
+                    totalPontos: 0,
+                    totalApostas: 0
+                };
+            }
+
+            const somaCartela = (a.palpites || []).reduce(
+                (soma, linha) => soma + (linha.pontosLinha || 0),
+                0
+            );
+
+            acumulado[id].totalPontos += somaCartela;
+            acumulado[id].totalApostas++;
+        }
+
+        const ranking = Object.values(acumulado)
+            .sort((a, b) => b.totalPontos - a.totalPontos)
+            .map((r, i) => ({ ...r, posicao: i + 1 }));
+
+        await RankingGeral.deleteMany({});
+        await RankingGeral.insertMany(ranking);
+
+        return ranking;
+    }
 
     /* ======================================================
        ⚽ TORCIDAS
@@ -190,4 +229,3 @@ class RankingService {
 }
 
 module.exports = new RankingService();
-
