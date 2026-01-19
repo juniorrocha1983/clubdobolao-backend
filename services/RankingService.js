@@ -177,14 +177,17 @@ class RankingService {
                 };
             }
 
-            const pontosRodada = a.desempenhoRodada?.pontuacaoRodada || 0;
+            // 🔥 SOMA TODAS AS LINHAS DA CARTELA
+            let somaCartela = 0;
 
-            acumulado[id].totalPontos += pontosRodada;
-            acumulado[id].totalApostas++;
-
+            if (Array.isArray(a.palpites)) {
+                a.palpites.forEach(linha => {
+                    somaCartela += linha.pontosLinha || 0;
+                });
+            }
 
             acumulado[id].totalPontos += somaCartela;
-            acumulado[id].totalApostas++;
+            acumulado[id].totalApostas += 1;
         }
 
         const ranking = Object.values(acumulado)
@@ -196,6 +199,7 @@ class RankingService {
 
         return ranking;
     }
+
 
     /* ======================================================
        ⚽ TORCIDAS
