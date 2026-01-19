@@ -47,7 +47,7 @@ class RankingService {
     /* ======================================================
        🏁 RANKING DA RODADA
        ====================================================== */
-    async atualizarRankingRodada(rodadaId) {
+   async atualizarRankingRodada(rodadaId) {
 
         const rodada = await Rodada.findById(rodadaId);
         if (!rodada) throw new Error("Rodada não encontrada");
@@ -144,69 +144,7 @@ class RankingService {
     /* ======================================================
        🏆 RANKING GERAL — soma todas as linhas
        ====================================================== */
-    async atualizarRankingGeral() {
-
-        const apostas = await Aposta.find({
-            status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
-        }).populate("usuario", "apelido timeCoracao");
-
-        const acumulado = {};
-
-        for (const a of apostas) {
-
-            const id = a.usuario?._id?.toString();
-            if (!id) continue;
-
-            if (!acumulado[id]) {
-                acumulado[id] = {
-                    usuarioId: id,
-                    apelido: a.usuario.apelido,
-                    timeCoracao: a.usuario.timeCoracao,
-                    totalPontos: 0,
-                    rodadasSet: new Set()
-                };
-            }
-
-            // 🔥 soma todas as linhas da cartela
-            if (Array.isArray(a.palpites)) {
-                a.palpites.forEach(linha => {
-                    acumulado[id].totalPontos += linha.pontosLinha || 0;
-                });
-            }
-
-            // ✅ conta a rodada apenas uma vez
-            acumulado[id].rodadasSet.add(a.rodada.toString());
-        }
-
-        // transforma em array
-        const rankingArray = Object.values(acumulado).map(r => ({
-            ...r,
-            totalApostas: r.rodadasSet.size
-        }));
-
-        // ordena por pontos
-        rankingArray.sort((a, b) => b.totalPontos - a.totalPontos);
-
-        // 🏆 aplica dense ranking
-        let posicaoAtual = 1;
-        let ultimaPontuacao = null;
-
-        rankingArray.forEach(r => {
-            if (ultimaPontuacao !== null && r.totalPontos < ultimaPontuacao) {
-                posicaoAtual++;
-            }
-
-            r.posicao = posicaoAtual;
-            ultimaPontuacao = r.totalPontos;
-
-            delete r.rodadasSet; // limpa antes de salvar
-        });
-
-        await RankingGeral.deleteMany({});
-        await RankingGeral.insertMany(rankingArray);
-
-        return rankingArray;
-    }
+ 
 
 
     /* ======================================================
@@ -252,3 +190,4 @@ class RankingService {
 }
 
 module.exports = new RankingService();
+
