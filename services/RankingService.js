@@ -45,7 +45,7 @@ class RankingService {
     }
 
     /* ======================================================
-       🏁 RANKING DA RODADA
+       🏁 RANKING DA RODADA (RANKING DENSO)
        ====================================================== */
     async atualizarRankingRodada(rodadaId) {
 
@@ -55,8 +55,7 @@ class RankingService {
         const apostas = await Aposta.find({
             rodada: rodadaId,
             status: { $in: ["ativa", "paga", "brinde", "finalizada", "campeao"] }
-        })
-            .populate("usuario", "apelido timeCoracao");
+        }).populate("usuario", "apelido timeCoracao");
 
         const resultados = rodada.jogos;
         const rankingData = [];
@@ -87,7 +86,6 @@ class RankingService {
                 }
             });
 
-            // Salva pontos calculados
             await Aposta.updateOne(
                 { _id: aposta._id },
                 {
@@ -111,23 +109,23 @@ class RankingService {
             });
         }
 
+        // Ordenação
         rankingData.sort((a, b) =>
             b.melhorLinha.pontos - a.melhorLinha.pontos ||
             a.createdAt - b.createdAt
         );
 
+        // 🔥 Ranking denso (sem pular posição)
+        let posicaoAtual = 1;
         let ultimaPontuacao = null;
-        let ultimaPosicao = 0;
 
-        rankingData.forEach((r, index) => {
-            if (r.melhorLinha.pontos !== ultimaPontuacao) {
-                ultimaPosicao = index + 1;
+        rankingData.forEach(r => {
+            if (ultimaPontuacao !== null && r.melhorLinha.pontos < ultimaPontuacao) {
+                posicaoAtual++;
             }
-
-            r.posicao = ultimaPosicao;
+            r.posicao = posicaoAtual;
             ultimaPontuacao = r.melhorLinha.pontos;
         });
-
 
         await RankingRodada.findOneAndUpdate(
             { rodadaId },
@@ -147,7 +145,7 @@ class RankingService {
     }
 
     /* ======================================================
-       🏆 RANKING GERAL — soma todas as linhas
+       🏆 RANKING GERAL DA TEMPORADA
        ====================================================== */
     async atualizarRankingGeral() {
 
@@ -192,7 +190,7 @@ class RankingService {
     }
 
     /* ======================================================
-       ⚽ TORCIDAS
+       ⚽ RANKING DE TORCIDAS
        ====================================================== */
     async atualizarRankingTorcida() {
         const usuarios = await User.find({}, "timeCoracao").lean();
@@ -200,8 +198,7 @@ class RankingService {
 
         usuarios.forEach(u => {
             const time = u.timeCoracao?.trim() || "Sem time";
-            if (!contagem[time]) contagem[time] = 0;
-            contagem[time]++;
+            contagem[time] = (contagem[time] || 0) + 1;
         });
 
         const total = Object.values(contagem).reduce((a, b) => a + b, 0);
@@ -221,14 +218,12 @@ class RankingService {
     }
 
     /* ======================================================
-       🚀 EXECUTA TUDO E REGISTRA CAMPEÃO
+       🚀 EXECUTA TUDO
        ====================================================== */
     async atualizarTudo(rodadaId) {
         await this.atualizarRankingRodada(rodadaId);
         await this.atualizarRankingGeral();
         await this.atualizarRankingTorcida();
-
-        // ⭐ AGORA SIM: registra campeão com dados CORRETOS
         await registrarCampeao(rodadaId);
     }
 }
