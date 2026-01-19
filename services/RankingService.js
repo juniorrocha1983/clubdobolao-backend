@@ -116,13 +116,18 @@ class RankingService {
             a.createdAt - b.createdAt
         );
 
-        const maiorPontuacao = rankingData[0]?.melhorLinha?.pontos || 0;
-        const campeoesCount = rankingData.filter(r => r.melhorLinha.pontos === maiorPontuacao).length;
+        let ultimaPontuacao = null;
+        let ultimaPosicao = 0;
 
-        rankingData.forEach((r, i) => {
-            if (r.melhorLinha.pontos === maiorPontuacao) r.posicao = 1;
-            else r.posicao = campeoesCount + (i + 1 - campeoesCount);
+        rankingData.forEach((r, index) => {
+            if (r.melhorLinha.pontos !== ultimaPontuacao) {
+                ultimaPosicao = index + 1;
+            }
+
+            r.posicao = ultimaPosicao;
+            ultimaPontuacao = r.melhorLinha.pontos;
         });
+
 
         await RankingRodada.findOneAndUpdate(
             { rodadaId },
