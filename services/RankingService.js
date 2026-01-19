@@ -163,28 +163,51 @@ class RankingService {
                     apelido: a.usuario.apelido,
                     timeCoracao: a.usuario.timeCoracao,
                     totalPontos: 0,
-                    totalApostas: 0
+                    rodadasSet: new Set()
                 };
             }
 
-            const somaCartela = (a.palpites || []).reduce(
-                (soma, linha) => soma + (linha.pontosLinha || 0),
-                0
-            );
+            // 🔥 soma todas as linhas da cartela
+            if (Array.isArray(a.palpites)) {
+                a.palpites.forEach(linha => {
+                    acumulado[id].totalPontos += linha.pontosLinha || 0;
+                });
+            }
 
-            acumulado[id].totalPontos += somaCartela;
-            acumulado[id].totalApostas++;
+            // ✅ conta a rodada apenas uma vez
+            acumulado[id].rodadasSet.add(a.rodada.toString());
         }
 
-        const ranking = Object.values(acumulado)
-            .sort((a, b) => b.totalPontos - a.totalPontos)
-            .map((r, i) => ({ ...r, posicao: i + 1 }));
+        // transforma em array
+        const rankingArray = Object.values(acumulado).map(r => ({
+            ...r,
+            totalApostas: r.rodadasSet.size
+        }));
+
+        // ordena por pontos
+        rankingArray.sort((a, b) => b.totalPontos - a.totalPontos);
+
+        // 🏆 aplica dense ranking
+        let posicaoAtual = 1;
+        let ultimaPontuacao = null;
+
+        rankingArray.forEach(r => {
+            if (ultimaPontuacao !== null && r.totalPontos < ultimaPontuacao) {
+                posicaoAtual++;
+            }
+
+            r.posicao = posicaoAtual;
+            ultimaPontuacao = r.totalPontos;
+
+            delete r.rodadasSet; // limpa antes de salvar
+        });
 
         await RankingGeral.deleteMany({});
-        await RankingGeral.insertMany(ranking);
+        await RankingGeral.insertMany(rankingArray);
 
-        return ranking;
+        return rankingArray;
     }
+
 
     /* ======================================================
        ⚽ TORCIDAS
