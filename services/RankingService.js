@@ -116,23 +116,13 @@ class RankingService {
             a.createdAt - b.createdAt
         );
 
-        let posicaoAtual = 1;
-        let ultimaPontuacao = null;
+        const maiorPontuacao = rankingData[0]?.melhorLinha?.pontos || 0;
+        const campeoesCount = rankingData.filter(r => r.melhorLinha.pontos === maiorPontuacao).length;
 
-        rankingData.forEach((r) => {
-
-            if (ultimaPontuacao === null) {
-                posicaoAtual = 1;
-            }
-            else if (r.melhorLinha.pontos < ultimaPontuacao) {
-                posicaoAtual++;
-            }
-
-            r.posicao = posicaoAtual;
-            ultimaPontuacao = r.melhorLinha.pontos;
+        rankingData.forEach((r, i) => {
+            if (r.melhorLinha.pontos === maiorPontuacao) r.posicao = 1;
+            else r.posicao = campeoesCount + (i + 1 - campeoesCount);
         });
-
-
 
         await RankingRodada.findOneAndUpdate(
             { rodadaId },
@@ -177,17 +167,13 @@ class RankingService {
                 };
             }
 
-            // 🔥 SOMA TODAS AS LINHAS DA CARTELA
-            let somaCartela = 0;
-
-            if (Array.isArray(a.palpites)) {
-                a.palpites.forEach(linha => {
-                    somaCartela += linha.pontosLinha || 0;
-                });
-            }
+            const somaCartela = (a.palpites || []).reduce(
+                (soma, linha) => soma + (linha.pontosLinha || 0),
+                0
+            );
 
             acumulado[id].totalPontos += somaCartela;
-            acumulado[id].totalApostas += 1;
+            acumulado[id].totalApostas++;
         }
 
         const ranking = Object.values(acumulado)
@@ -199,7 +185,6 @@ class RankingService {
 
         return ranking;
     }
-
 
     /* ======================================================
        ⚽ TORCIDAS
