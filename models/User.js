@@ -39,8 +39,7 @@ const userSchema = new mongoose.Schema({
         rodadasParticipadas: { type: Number, default: 0 },
         pontuacaoTotal: { type: Number, default: 0 },
         premiosGanhos: { type: Number, default: 0 },
-        rankingGeral: { type: String, default: '--' },
-        rankingMes: { type: String, default: '--' }
+      
     },
 
     // 📅 DATA DE CADASTRO (utilizada no painel e nos históricos)
@@ -62,3 +61,4 @@ const userSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('User', userSchema);
+
