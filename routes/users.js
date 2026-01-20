@@ -29,7 +29,7 @@ router.get("/me", auth, async (req, res) => {
 
 
 // 🎯 GET /api/usuario/dados - Dados básicos do usuário
-router.get('/dados', auth, async (req, res) => {
+/*router.get('/dados', auth, async (req, res) => {
     try {
         const usuario = await User.findById(req.user.id).select('-senha');
 
@@ -49,10 +49,10 @@ router.get('/dados', auth, async (req, res) => {
         console.error('❌ Erro ao buscar dados do usuário:', error);
         res.status(500).json({ error: 'Erro interno do servidor' });
     }
-});
+});*/
 
 // 🎯 GET /api/usuario/estatisticas - Estatísticas detalhadas
-router.get('/estatisticas', auth, async (req, res) => {
+/*router.get('/estatisticas', auth, async (req, res) => {
     try {
         const estatisticas = await gerarEstatisticasUsuario(req.user.id);
         res.json(estatisticas);
@@ -60,7 +60,7 @@ router.get('/estatisticas', auth, async (req, res) => {
         console.error('❌ Erro ao buscar estatísticas:', error);
         res.status(500).json({ error: 'Erro interno do servidor' });
     }
-});
+});*/
 
 
 // 🛠️ PUT /api/usuario/update - Atualiza dados do usuário logado
