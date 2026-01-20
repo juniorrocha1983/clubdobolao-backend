@@ -105,7 +105,7 @@ router.put('/update', auth, async (req, res) => {
 });
 
 // 🎯 FUNÇÃO PARA GERAR ESTATÍSTICAS DO USUÁRIO
-async function gerarEstatisticasUsuario(userId) {
+/*async function gerarEstatisticasUsuario(userId) {
     try {
         // Buscar todas as apostas do usuário
         const apostas = await Aposta.find({ usuario: userId })
@@ -163,7 +163,7 @@ async function gerarEstatisticasUsuario(userId) {
             apostasPendentes: 0
         };
     }
-}
+}*/
 
 // 🔒 ALTERAR STATUS DO USUÁRIO (Admin)
 router.put("/status/:id", protect, adminOnly, async (req, res) => {
@@ -242,3 +242,4 @@ router.post("/salvar-cpf", auth, async (req, res) => {
 
 
 module.exports = router;
+
