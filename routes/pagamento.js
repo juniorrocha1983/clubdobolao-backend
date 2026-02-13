@@ -118,10 +118,15 @@ router.post("/pix", auth, async (req, res) => {
 ============================================================ */
 router.post("/webhook", async (req, res) => {
     try {
+        console.log("📩 WEBHOOK RECEBIDO:", JSON.stringify(req.body, null, 2));
+
         const body = req.body;
 
-        if (body.type !== "payment")
+        if (!body.data || !body.data.id) {
+            console.log("⚠️ Webhook sem data.id");
             return res.sendStatus(200);
+        }
+
         let pagamento;
 
         try {
@@ -129,24 +134,32 @@ router.post("/webhook", async (req, res) => {
                 id: body.data.id
             });
         } catch (err) {
-            console.log("⚠️ Pagamento não encontrado (teste do MP). Ignorando.");
+            console.log("⚠️ Pagamento não encontrado");
             return res.sendStatus(200);
         }
 
+        console.log("📊 PAGAMENTO COMPLETO:", JSON.stringify(pagamento, null, 2));
 
-        const paymentData = pagamento.body;
-
-        console.log("📩 WEBHOOK RECEBIDO:", paymentData.status);
-
-        if (paymentData.status !== "approved")
+        // 🔥 IMPORTANTE: usar objeto direto
+        if (pagamento.status !== "approved") {
+            console.log("Pagamento ainda não aprovado:", pagamento.status);
             return res.sendStatus(200);
+        }
 
-        const preApostaId = paymentData.external_reference;
+        const preApostaId = pagamento.external_reference;
 
         const pre = await PreAposta.findById(preApostaId);
-        if (!pre) return res.sendStatus(200);
+        if (!pre) {
+            console.log("⚠️ Pré-aposta não encontrada");
+            return res.sendStatus(200);
+        }
 
-        const aposta = await Aposta.create({
+        if (pre.status === "paga") {
+            console.log("Já estava paga");
+            return res.sendStatus(200);
+        }
+
+        await Aposta.create({
             usuario: pre.usuario,
             rodada: pre.rodada,
             palpites: pre.palpites,
@@ -162,17 +175,18 @@ router.post("/webhook", async (req, res) => {
         pre.dataPagamento = new Date();
         await pre.save();
 
-        console.log("🎯 APOSTA PAGA:", aposta._id);
+        console.log("🎯 APOSTA CONFIRMADA VIA WEBHOOK");
 
         return res.sendStatus(200);
 
     } catch (error) {
         console.log("❌ ERRO WEBHOOK:", error);
-        return res.sendStatus(500);
+        return res.sendStatus(200);
     }
 });
 
 
 module.exports = router;
+
 
 
