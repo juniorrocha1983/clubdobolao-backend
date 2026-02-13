@@ -123,7 +123,6 @@ router.post("/webhook", async (req, res) => {
         const body = req.body;
 
         if (!body.data || !body.data.id) {
-            console.log("⚠️ Webhook sem data.id");
             return res.sendStatus(200);
         }
 
@@ -138,9 +137,6 @@ router.post("/webhook", async (req, res) => {
             return res.sendStatus(200);
         }
 
-        console.log("📊 PAGAMENTO COMPLETO:", JSON.stringify(pagamento, null, 2));
-
-        // 🔥 IMPORTANTE: usar objeto direto
         if (pagamento.status !== "approved") {
             console.log("Pagamento ainda não aprovado:", pagamento.status);
             return res.sendStatus(200);
@@ -154,28 +150,36 @@ router.post("/webhook", async (req, res) => {
             return res.sendStatus(200);
         }
 
-        if (pre.status === "paga") {
-            console.log("Já estava paga");
-            return res.sendStatus(200);
-        }
-
-        await Aposta.create({
+        // 🔥 EVITA DUPLICAÇÃO
+        const apostaExistente = await Aposta.findOne({
             usuario: pre.usuario,
-            rodada: pre.rodada,
-            palpites: pre.palpites,
-            numLinhas: pre.numLinhas,
-            valor: pre.valor,
-            tipo: "pix",
-            status: "paga",
-            numeroCartela: pre.numeroCartela,
-            dataPagamento: new Date()
+            rodada: pre.rodada
         });
 
+        if (!apostaExistente) {
+            await Aposta.create({
+                usuario: pre.usuario,
+                rodada: pre.rodada,
+                palpites: pre.palpites,
+                numLinhas: pre.numLinhas,
+                valor: pre.valor,
+                tipo: "pix",
+                status: "paga",
+                numeroCartela: pre.numeroCartela,
+                dataPagamento: new Date()
+            });
+
+            console.log("🎯 APOSTA CRIADA");
+        } else {
+            console.log("⚠️ Aposta já existia");
+        }
+
+        // 🔥 SEMPRE atualiza pre-aposta
         pre.status = "paga";
         pre.dataPagamento = new Date();
         await pre.save();
 
-        console.log("🎯 APOSTA CONFIRMADA VIA WEBHOOK");
+        console.log("✅ PRE-APOSTA ATUALIZADA");
 
         return res.sendStatus(200);
 
@@ -186,7 +190,9 @@ router.post("/webhook", async (req, res) => {
 });
 
 
+
 module.exports = router;
+
 
 
 
