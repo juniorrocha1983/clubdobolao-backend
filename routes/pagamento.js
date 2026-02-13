@@ -78,9 +78,10 @@ router.post("/pix", auth, async (req, res) => {
             }
         });
 
-        console.log("🔥 RESPOSTA COMPLETA MP:", JSON.stringify(pagamento.body, null, 2));
+        console.log("🔥 RESPOSTA COMPLETA MP:", JSON.stringify(pagamento, null, 2));
 
-        const data = pagamento.body;
+        // 🔥 AQUI ESTÁ A CORREÇÃO
+        const data = pagamento;
 
         if (!data.point_of_interaction) {
             return res.status(400).json({
@@ -91,7 +92,6 @@ router.post("/pix", auth, async (req, res) => {
 
         const infoPix = data.point_of_interaction.transaction_data;
 
-        // 🔥 Atualiza status
         pre.status = "aguardando_pagamento";
         await pre.save();
 
@@ -103,13 +103,14 @@ router.post("/pix", auth, async (req, res) => {
         });
 
     } catch (error) {
-        console.error("❌ ERRO PIX:", error.response?.data || error);
+        console.error("❌ ERRO PIX:", error);
         return res.status(500).json({
             error: "Erro ao gerar PIX.",
-            detalhes: error.response?.data || error.message
+            detalhes: error.message
         });
     }
 });
+
 
 
 /* ============================================================
@@ -173,4 +174,5 @@ router.post("/webhook", async (req, res) => {
 
 
 module.exports = router;
+
 
