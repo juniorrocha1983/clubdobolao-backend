@@ -97,10 +97,17 @@ router.post("/webhook", async (req, res) => {
 
         if (body.type !== "payment")
             return res.sendStatus(200);
+        let pagamento;
 
-        const pagamento = await mpPayment.get({
-            id: body.data.id
-        });
+        try {
+            pagamento = await mpPayment.get({
+                id: body.data.id
+            });
+        } catch (err) {
+            console.log("⚠️ Pagamento não encontrado (teste do MP). Ignorando.");
+            return res.sendStatus(200);
+        }
+
 
         const paymentData = pagamento.body;
 
