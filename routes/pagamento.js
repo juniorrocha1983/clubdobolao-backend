@@ -14,6 +14,30 @@ const mpClient = new MercadoPagoConfig({
 
 const mpPayment = new Payment(mpClient);
 
+router.post("/salvar-cpf", auth, async (req, res) => {
+    try {
+        const { cpf } = req.body;
+
+        if (!cpf || cpf.length !== 11) {
+            return res.status(400).json({ error: "CPF inválido." });
+        }
+
+        const usuario = await User.findById(req.user.id);
+
+        if (!usuario) {
+            return res.status(404).json({ error: "Usuário não encontrado." });
+        }
+
+        usuario.cpf = cpf;
+        await usuario.save();
+
+        return res.json({ sucesso: true });
+
+    } catch (error) {
+        console.error("Erro ao salvar CPF:", error);
+        return res.status(500).json({ error: "Erro interno." });
+    }
+});
 
 /* ============================================================
    1️⃣ GERAR PIX
@@ -149,3 +173,4 @@ router.post("/webhook", async (req, res) => {
 
 
 module.exports = router;
+
