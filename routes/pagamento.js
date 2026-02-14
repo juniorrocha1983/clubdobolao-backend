@@ -116,13 +116,17 @@ router.post("/pix", auth, async (req, res) => {
 /* ============================================================
    2️⃣ WEBHOOK
 ============================================================ */
+/* ============================================================
+   2️⃣ WEBHOOK MERCADO PAGO — DEFINITIVO E SEGURO
+============================================================ */
 router.post("/webhook", async (req, res) => {
     try {
         console.log("📩 WEBHOOK RECEBIDO:", JSON.stringify(req.body, null, 2));
 
         const body = req.body;
 
-        if (!body.data || !body.data.id) {
+        // 🔒 Ignora eventos que não sejam pagamento
+        if (body.type !== "payment" || !body.data?.id) {
             return res.sendStatus(200);
         }
 
@@ -133,30 +137,38 @@ router.post("/webhook", async (req, res) => {
                 id: body.data.id
             });
         } catch (err) {
-            console.log("⚠️ Pagamento não encontrado");
+            console.log("⚠️ Pagamento não encontrado no MP");
             return res.sendStatus(200);
         }
 
-        if (pagamento.status !== "approved") {
-            console.log("Pagamento ainda não aprovado:", pagamento.status);
+        // 🔥 IMPORTANTE: SDK retorna objeto direto
+        if (!pagamento || pagamento.status !== "approved") {
+            console.log("⏳ Pagamento ainda não aprovado:", pagamento?.status);
             return res.sendStatus(200);
         }
 
         const preApostaId = pagamento.external_reference;
 
-        const pre = await PreAposta.findById(preApostaId);
-        if (!pre) {
-            console.log("⚠️ Pré-aposta não encontrada");
+        if (!preApostaId) {
+            console.log("⚠️ Pagamento sem external_reference");
             return res.sendStatus(200);
         }
 
-        // 🔥 EVITA DUPLICAÇÃO
-        const apostaExistente = await Aposta.findOne({
+        const pre = await PreAposta.findById(preApostaId);
+
+        if (!pre) {
+            console.log("⚠️ Pré-aposta não encontrada:", preApostaId);
+            return res.sendStatus(200);
+        }
+
+        // 🔒 VERIFICA SE JÁ EXISTE APOSTA (ÍNDICE ÚNICO PROTEGE)
+        let apostaExistente = await Aposta.findOne({
             usuario: pre.usuario,
             rodada: pre.rodada
         });
 
         if (!apostaExistente) {
+
             await Aposta.create({
                 usuario: pre.usuario,
                 rodada: pre.rodada,
@@ -165,33 +177,34 @@ router.post("/webhook", async (req, res) => {
                 valor: pre.valor,
                 tipo: "pix",
                 status: "paga",
-                numeroCartela: pre.numeroCartela,
+                numeroCartela: String(pre.numeroCartela),
                 dataPagamento: new Date()
             });
 
-            console.log("🎯 APOSTA CRIADA");
+            console.log("🎯 APOSTA CRIADA COM SUCESSO");
         } else {
-            console.log("⚠️ Aposta já existia");
+            console.log("⚠️ Aposta já existia — não criou novamente");
         }
 
-        // 🔥 SEMPRE atualiza pre-aposta
+        // ✅ Atualiza pré-aposta SEMPRE
         pre.status = "paga";
         pre.dataPagamento = new Date();
         await pre.save();
 
-        console.log("✅ PRE-APOSTA ATUALIZADA");
+        console.log("✅ PRE-APOSTA ATUALIZADA PARA PAGA");
 
         return res.sendStatus(200);
 
     } catch (error) {
         console.log("❌ ERRO WEBHOOK:", error);
-        return res.sendStatus(200);
+        return res.sendStatus(200); // nunca retornar 500 para MP
     }
 });
 
 
 
 module.exports = router;
+
 
 
 
