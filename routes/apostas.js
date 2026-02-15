@@ -4,6 +4,8 @@ const router = express.Router();
 const { auth, adminOnly } = require('../middleware/auth');
 const Aposta = require('../models/Aposta');
 const Rodada = require('../models/Rodada');
+const PreAposta = require("../models/PreAposta");
+
 
 // 🎯 Gera número único de cartela
 const gerarNumeroCartelaUnico = async () => {
@@ -371,4 +373,5 @@ router.get('/status/:id', auth, async (req, res) => {
 
 
 module.exports = router;
+
 
