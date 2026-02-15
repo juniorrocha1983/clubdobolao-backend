@@ -37,27 +37,21 @@ router.get("/verificar/:rodadaId", auth, async (req, res) => {
     try {
         const { rodadaId } = req.params;
 
+        // 🔥 Verifica SOMENTE aposta válida
         const aposta = await Aposta.findOne({
             usuario: req.user.id,
-            rodada: rodadaId
+            rodada: rodadaId,
+            status: { $in: ["paga", "brinde"] }
         });
 
-        const preAposta = await PreAposta.findOne({
-            usuario: req.user.id,
-            rodada: rodadaId
-        });
-
-        if (aposta || preAposta) {
-            return res.json({ existe: true });
-        }
-
-        return res.json({ existe: false });
+        return res.json({ existe: !!aposta });
 
     } catch (error) {
         console.error("Erro verificar aposta:", error);
-        return res.status(500).json({ erro: true });
+        return res.status(500).json({ existe: false });
     }
 });
+
 
 
 /* ==========================================================
@@ -373,5 +367,6 @@ router.get('/status/:id', auth, async (req, res) => {
 
 
 module.exports = router;
+
 
 
