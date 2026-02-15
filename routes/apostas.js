@@ -31,6 +31,32 @@ router.get('/minhas-apostas', auth, async (req, res) => {
   }
 });
 
+router.get("/verificar/:rodadaId", auth, async (req, res) => {
+    try {
+        const { rodadaId } = req.params;
+
+        const aposta = await Aposta.findOne({
+            usuario: req.user.id,
+            rodada: rodadaId
+        });
+
+        const preAposta = await PreAposta.findOne({
+            usuario: req.user.id,
+            rodada: rodadaId
+        });
+
+        if (aposta || preAposta) {
+            return res.json({ existe: true });
+        }
+
+        return res.json({ existe: false });
+
+    } catch (error) {
+        console.error("Erro verificar aposta:", error);
+        return res.status(500).json({ erro: true });
+    }
+});
+
 
 /* ==========================================================
    ✅ 2 — CARTELA ADMIN (usuário + rodada)
@@ -345,3 +371,4 @@ router.get('/status/:id', auth, async (req, res) => {
 
 
 module.exports = router;
+
