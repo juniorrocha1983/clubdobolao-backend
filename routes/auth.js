@@ -4,9 +4,10 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const router = express.Router();
 const nodemailer = require("nodemailer");
+const crypto = require("crypto");
 
 // ======================================================
-// 🔎 Função utilitária: validar e-mail
+// 🔎 VALIDAR E-MAIL
 // ======================================================
 function validarEmail(email) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -17,8 +18,6 @@ function validarEmail(email) {
 // ======================================================
 router.post('/register', async (req, res) => {
     try {
-        console.log('📥 Dados recebidos no register:', req.body);
-
         const nomeCompleto = req.body.nomeCompleto || req.body.nome;
         const apelido = req.body.apelido;
         const email = req.body.email;
@@ -26,41 +25,28 @@ router.post('/register', async (req, res) => {
         const confirmarSenha = req.body.confirmarSenha;
         const timeCoracao = req.body.time;
 
-        // 🔒 Campos obrigatórios
         if (!nomeCompleto || !apelido || !email || !senha || !timeCoracao) {
             return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
         }
 
-        // 🔒 Validação de e-mail
         if (!validarEmail(email)) {
-            return res.status(400).json({
-                error: 'E-mail inválido. Use o formato nome@email.com'
-            });
+            return res.status(400).json({ error: 'E-mail inválido.' });
         }
 
-        // 🔒 Confirmação de senha
         if (confirmarSenha && senha !== confirmarSenha) {
             return res.status(400).json({ error: 'Senhas não coincidem' });
         }
 
-        // 🔒 Verificar se e-mail ou apelido já existem
         const usuarioExistente = await User.findOne({
-            $or: [
-                { email: email.toLowerCase().trim() },
-                { apelido }
-            ]
+            $or: [{ email: email.toLowerCase().trim() }, { apelido }]
         });
 
         if (usuarioExistente) {
-            return res.status(400).json({
-                error: 'Email ou apelido já cadastrado'
-            });
+            return res.status(400).json({ error: 'Email ou apelido já cadastrado' });
         }
 
-        // 🔐 Hash da senha
         const senhaHash = await bcrypt.hash(senha, 10);
 
-        // 🧾 Criar usuário
         const novoUsuario = new User({
             nomeCompleto,
             apelido,
@@ -71,7 +57,6 @@ router.post('/register', async (req, res) => {
 
         await novoUsuario.save();
 
-        // 🔑 Gerar token
         const token = jwt.sign(
             { userId: novoUsuario._id },
             process.env.JWT_SECRET || 'fallback_secret',
@@ -98,33 +83,26 @@ router.post('/register', async (req, res) => {
 });
 
 // ======================================================
-// 🔐 LOGIN DO USUÁRIO
+// 🔐 LOGIN
 // ======================================================
 router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        console.log('🔐 Dados recebidos no login:', req.body);
 
         if (!email || !password) {
             return res.status(400).json({ error: 'Email e senha são obrigatórios' });
         }
 
-        const usuario = await User.findOne({
-            email: email.toLowerCase().trim()
-        });
+        const usuario = await User.findOne({ email: email.toLowerCase().trim() });
 
         if (!usuario) {
-            return res.status(400).json({
-                error: 'Credenciais inválidas'
-            });
+            return res.status(400).json({ error: 'Credenciais inválidas' });
         }
 
         const senhaValida = await bcrypt.compare(password, usuario.senha);
 
         if (!senhaValida) {
-            return res.status(400).json({
-                error: 'Credenciais inválidas'
-            });
+            return res.status(400).json({ error: 'Credenciais inválidas' });
         }
 
         const token = jwt.sign(
@@ -132,8 +110,6 @@ router.post('/login', async (req, res) => {
             process.env.JWT_SECRET || 'fallback_secret',
             { expiresIn: '7d' }
         );
-
-        console.log('✅ Login bem-sucedido:', usuario.email);
 
         res.json({
             message: 'Login realizado com sucesso',
@@ -160,9 +136,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', async (req, res) => {
     try {
         const token = req.header('Authorization')?.replace('Bearer ', '');
-        if (!token) {
-            return res.status(401).json({ error: 'Token não fornecido' });
-        }
+        if (!token) return res.status(401).json({ error: 'Token não fornecido' });
 
         const decoded = jwt.verify(
             token,
@@ -178,8 +152,93 @@ router.get('/me', async (req, res) => {
         res.json({ user });
 
     } catch (error) {
-        console.error('❌ Erro ao verificar token:', error);
+        console.error('❌ Token inválido:', error);
         res.status(401).json({ error: 'Token inválido' });
+    }
+});
+
+// ======================================================
+// 🔒 RECUPERAÇÃO DE SENHA – ENVIAR E-MAIL
+// ======================================================
+router.post("/esqueci-senha", async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) return res.status(400).json({ message: "E-mail é obrigatório" });
+
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+        if (!user) return res.status(400).json({ message: "E-mail não encontrado" });
+
+        const token = crypto.randomBytes(32).toString("hex");
+
+        user.resetToken = token;
+        user.resetTokenExpira = Date.now() + 3600000;
+        await user.save();
+
+        const link = `https://clubdobolao.com.br/nova-senha.html?token=${token}`;
+
+        const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
+        });
+
+        await transporter.sendMail({
+            from: "Club do Bolão <no-reply@clubdobolao.com.br>",
+            to: email,
+            subject: "Redefinição de Senha",
+            html: `
+                <h2>Redefinir Senha</h2>
+                <p>Clique no link abaixo:</p>
+                <a href="${link}">${link}</a>
+                <p>Link expira em 1 hora.</p>
+            `
+        });
+
+        res.json({ message: "E-mail enviado com sucesso!" });
+
+    } catch (error) {
+        console.error("Erro ao enviar recuperação:", error);
+        res.status(500).json({ message: "Erro ao enviar e-mail" });
+    }
+});
+
+// ======================================================
+// 🔑 REDEFINIR SENHA
+// ======================================================
+router.post("/resetar-senha", async (req, res) => {
+    try {
+        const { token, novaSenha } = req.body;
+
+        if (!token || !novaSenha) {
+            return res.status(400).json({ message: "Dados inválidos" });
+        }
+
+        const user = await User.findOne({
+            resetToken: token,
+            resetTokenExpira: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: "Token inválido ou expirado" });
+        }
+
+        const senhaHash = await bcrypt.hash(novaSenha, 10);
+
+        user.senha = senhaHash;
+        user.resetToken = undefined;
+        user.resetTokenExpira = undefined;
+
+        await user.save();
+
+        res.json({ message: "Senha redefinida com sucesso!" });
+
+    } catch (error) {
+        console.error("Erro ao redefinir senha:", error);
+        res.status(500).json({ message: "Erro interno" });
     }
 });
 
