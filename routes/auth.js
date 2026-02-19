@@ -3,8 +3,11 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const router = express.Router();
-const nodemailer = require("nodemailer");
 const crypto = require("crypto");
+
+// === RESEND (envio de e-mail por API HTTP – funciona no Render)
+const { Resend } = require("resend");
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // ======================================================
 // 🔎 VALIDAR E-MAIL
@@ -131,36 +134,9 @@ router.post('/login', async (req, res) => {
 });
 
 // ======================================================
-// 🧾 VERIFICAR TOKEN
+// 🔒 ENVIAR E-MAIL DE RECUPERAÇÃO VIA RESEND
 // ======================================================
-router.get('/me', async (req, res) => {
-    try {
-        const token = req.header('Authorization')?.replace('Bearer ', '');
-        if (!token) return res.status(401).json({ error: 'Token não fornecido' });
-
-        const decoded = jwt.verify(
-            token,
-            process.env.JWT_SECRET || 'fallback_secret'
-        );
-
-        const user = await User.findById(decoded.userId).select('-senha');
-
-        if (!user) {
-            return res.status(401).json({ error: 'Usuário não encontrado' });
-        }
-
-        res.json({ user });
-
-    } catch (error) {
-        console.error('❌ Token inválido:', error);
-        res.status(401).json({ error: 'Token inválido' });
-    }
-});
-
-// ======================================================
-// 🔒 RECUPERAÇÃO DE SENHA – ENVIAR E-MAIL
-// ======================================================
-router.post("/esqueci-senha", async (req, res) => {
+router.post('/esqueci-senha', async (req, res) => {
     try {
         const { email } = req.body;
 
@@ -173,43 +149,36 @@ router.post("/esqueci-senha", async (req, res) => {
         const token = crypto.randomBytes(32).toString("hex");
 
         user.resetToken = token;
-        user.resetTokenExpira = Date.now() + 3600000;
+        user.resetTokenExpira = Date.now() + 3600000; // 1h
         await user.save();
 
         const link = `https://clubdobolao.com.br/nova-senha.html?token=${token}`;
 
-        const transporter = nodemailer.createTransport({
-            service: "gmail",
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS
-            }
-        });
-
-        await transporter.sendMail({
-            from: "Club do Bolão <no-reply@clubdobolao.com.br>",
+        // === Envio com RESEND ===
+        await resend.emails.send({
+            from: "Club do Bolão <noreply@clubdobolao.com.br>",
             to: email,
             subject: "Redefinição de Senha",
             html: `
-                <h2>Redefinir Senha</h2>
-                <p>Clique no link abaixo:</p>
+                <h2>Redefinição de Senha</h2>
+                <p>Clique no link abaixo para criar uma nova senha:</p>
                 <a href="${link}">${link}</a>
-                <p>Link expira em 1 hora.</p>
+                <p>O link expira em 1 hora.</p>
             `
         });
 
-        res.json({ message: "E-mail enviado com sucesso!" });
+        return res.json({ message: "E-mail enviado com sucesso!" });
 
     } catch (error) {
-        console.error("Erro ao enviar recuperação:", error);
-        res.status(500).json({ message: "Erro ao enviar e-mail" });
+        console.error("❌ Erro ao enviar e-mail via Resend:", error);
+        return res.status(500).json({ message: "Erro ao enviar e-mail." });
     }
 });
 
 // ======================================================
 // 🔑 REDEFINIR SENHA
 // ======================================================
-router.post("/resetar-senha", async (req, res) => {
+router.post('/resetar-senha', async (req, res) => {
     try {
         const { token, novaSenha } = req.body;
 
@@ -229,8 +198,8 @@ router.post("/resetar-senha", async (req, res) => {
         const senhaHash = await bcrypt.hash(novaSenha, 10);
 
         user.senha = senhaHash;
-        user.resetToken = undefined;
-        user.resetTokenExpira = undefined;
+        user.resetToken = null;
+        user.resetTokenExpira = null;
 
         await user.save();
 
