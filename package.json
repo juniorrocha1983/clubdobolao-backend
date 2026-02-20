@@ -19,6 +19,7 @@
     "kill-port": "^2.0.1",
     "mercadopago": "^2.11.0",
     "mongoose": "^7.5.0",
+    "resend": "^6.9.2",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
