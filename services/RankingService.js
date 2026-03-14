@@ -59,52 +59,31 @@ class RankingService {
 
         const resultados = rodada.jogos;
         const rankingData = [];
+
         for (const aposta of apostas) {
 
-            let melhorLinha = {
-                numero: 1,
-                pontos: 0,
-                acertos: {
-                    placar: 0,
-                    resultado: 0,
-                    erro: 0
-                }
-            };
+            let melhorLinha = { numero: 1, pontos: 0, acertos: 0 };
 
             aposta.palpites.forEach((linha, idxLinha) => {
-
                 let pontos = 0;
-
-                let acertos = {
-                    placar: 0,
-                    resultado: 0,
-                    erro: 0
-                };
+                let acertos = 0;
 
                 linha.jogos.forEach((p, idxJogo) => {
-
                     const pts = this._pontuar(p, resultados[idxJogo]);
                     pontos += pts;
-
-                    if (pts === 5) acertos.placar++;
-                    else if (pts === 3) acertos.resultado++;
-                    else acertos.erro++;
-
+                    if (pts > 0) acertos++;
                 });
 
                 linha.pontosLinha = pontos;
                 linha.acertos = acertos;
 
                 if (pontos > melhorLinha.pontos) {
-
                     melhorLinha = {
                         numero: idxLinha + 1,
                         pontos,
                         acertos
                     };
-
                 }
-
             });
 
             await Aposta.updateOne(
@@ -168,68 +147,68 @@ class RankingService {
     /* ======================================================
        🏆 RANKING GERAL DA TEMPORADA
        ====================================================== */
-    async atualizarRankingGeral() {
+   async atualizarRankingGeral() {
 
-        const apostas = await Aposta.find({
-            status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
-        })
-            .populate("usuario", "apelido timeCoracao")
-            .populate("rodada");
+    const apostas = await Aposta.find({
+        status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
+    })
+    .populate("usuario", "apelido timeCoracao")
+    .populate("rodada");
 
-        const acumulado = {};
+    const acumulado = {};
 
-        for (const a of apostas) {
+    for (const a of apostas) {
 
-            const usuario = a.usuario;
-            if (!usuario) continue;
+        const usuario = a.usuario;
+        if (!usuario) continue;
 
-            const userId = usuario._id.toString();
+        const userId = usuario._id.toString();
 
-            if (!acumulado[userId]) {
-                acumulado[userId] = {
-                    usuarioId: userId,
-                    apelido: usuario.apelido,
-                    timeCoracao: usuario.timeCoracao,
-                    totalPontos: 0,
-                    rodadasSet: new Set() // 👈 controla rodadas únicas
-                };
-            }
-
-            // 🔥 SOMA REAL DA CARTELA (todas as linhas)
-            const somaCartela = (a.palpites || []).reduce(
-                (soma, linha) => soma + (linha.pontosLinha || 0),
-                0
-            );
-
-            acumulado[userId].totalPontos += somaCartela;
-
-            // 👇 Marca a rodada como participada
-            if (a.rodada?._id) {
-                acumulado[userId].rodadasSet.add(a.rodada._id.toString());
-            }
+        if (!acumulado[userId]) {
+            acumulado[userId] = {
+                usuarioId: userId,
+                apelido: usuario.apelido,
+                timeCoracao: usuario.timeCoracao,
+                totalPontos: 0,
+                rodadasSet: new Set() // 👈 controla rodadas únicas
+            };
         }
 
-        // 🔢 Converte para array e finaliza dados
-        const ranking = Object.values(acumulado)
-            .map(user => ({
-                usuarioId: user.usuarioId,
-                apelido: user.apelido,
-                timeCoracao: user.timeCoracao,
-                totalPontos: user.totalPontos,
-                totalApostas: user.rodadasSet.size // 👈 rodadas participadas
-            }))
-            .sort((a, b) => b.totalPontos - a.totalPontos)
-            .map((user, index) => ({
-                ...user,
-                posicao: index + 1
-            }));
+        // 🔥 SOMA REAL DA CARTELA (todas as linhas)
+        const somaCartela = (a.palpites || []).reduce(
+            (soma, linha) => soma + (linha.pontosLinha || 0),
+            0
+        );
 
-        // 🔄 Atualiza coleção
-        await RankingGeral.deleteMany({});
-        await RankingGeral.insertMany(ranking);
+        acumulado[userId].totalPontos += somaCartela;
 
-        return ranking;
+        // 👇 Marca a rodada como participada
+        if (a.rodada?._id) {
+            acumulado[userId].rodadasSet.add(a.rodada._id.toString());
+        }
     }
+
+    // 🔢 Converte para array e finaliza dados
+    const ranking = Object.values(acumulado)
+        .map(user => ({
+            usuarioId: user.usuarioId,
+            apelido: user.apelido,
+            timeCoracao: user.timeCoracao,
+            totalPontos: user.totalPontos,
+            totalApostas: user.rodadasSet.size // 👈 rodadas participadas
+        }))
+        .sort((a, b) => b.totalPontos - a.totalPontos)
+        .map((user, index) => ({
+            ...user,
+            posicao: index + 1
+        }));
+
+    // 🔄 Atualiza coleção
+    await RankingGeral.deleteMany({});
+    await RankingGeral.insertMany(ranking);
+
+    return ranking;
+}
 
 
     /* ======================================================
@@ -272,4 +251,3 @@ class RankingService {
 }
 
 module.exports = new RankingService();
-
