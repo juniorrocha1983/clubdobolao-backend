@@ -59,7 +59,6 @@ class RankingService {
 
         const resultados = rodada.jogos;
         const rankingData = [];
-
         for (const aposta of apostas) {
 
             let melhorLinha = {
