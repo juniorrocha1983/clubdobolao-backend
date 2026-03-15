@@ -1,27 +1,21 @@
-// utils/calcularPontuacao.js — VERSÃO FINAL
+// utils/calcularPontuacao.js — VERSÃO FINAL COM DETALHAMENTO DE ACERTOS
 //--------------------------------------------------
-// Função responsável SOMENTE por calcular a pontuação
-// da rodada e salvar na aposta. NÃO decide campeão,
-// NÃO altera status, NÃO interfere no ranking.
-//--------------------------------------------------
-
 const Aposta = require("../models/Aposta");
 const Rodada = require("../models/Rodada");
 const { atualizarEstatisticasUsuario } = require("./estatisticas");
 
 //--------------------------------------------------
-// Função auxiliar — calcula pontos de um palpite
+// Função auxiliar — calcula pontos e identifica o tipo de acerto
 //--------------------------------------------------
 function calcularPontosDoJogo(palpiteObj, jogoReal) {
-  // Se o jogo não tem placar definido → zero
+  // Se o jogo não tem placar definido → erro
   if (!jogoReal || jogoReal.placarMandante == null || jogoReal.placarVisitante == null) {
-    return { pontos: 0, acertou: false };
+    return { pontos: 0, tipo: "erro" };
   }
 
-  // Interpretar palpite
   let mandante, visitante;
 
-  // Caso o palpite seja string “2x1”
+  // Interpretar palpite (string "2x1" ou campos numéricos)
   if (palpiteObj.palpite && typeof palpiteObj.palpite === "string") {
     const partes = palpiteObj.palpite.replace(/\s+/g, "").split(/[xX-]/);
     mandante = Number(partes[0]);
@@ -32,39 +26,31 @@ function calcularPontosDoJogo(palpiteObj, jogoReal) {
   }
 
   if (mandante == null || visitante == null) {
-    return { pontos: 0, acertou: false };
+    return { pontos: 0, tipo: "erro" };
   }
 
-  // Placar exato → 5 pts
-  if (
-    mandante === jogoReal.placarMandante &&
-    visitante === jogoReal.placarVisitante
-  ) {
-    return { pontos: 5, acertou: true };
+  // 1. Placar exato → 5 pts (Tipo: placar -> 🏆)
+  if (mandante === jogoReal.placarMandante && visitante === jogoReal.placarVisitante) {
+    return { pontos: 5, tipo: "placar" };
   }
 
-  // Resultado correto (vitória/empate/derrota) → 3 pts
-  const resultadoPalpite =
-    mandante > visitante ? "C" :
-    mandante < visitante ? "F" : "E";
-
-  const resultadoReal =
-    jogoReal.placarMandante > jogoReal.placarVisitante ? "C" :
-    jogoReal.placarMandante < jogoReal.placarVisitante ? "F" : "E";
+  // 2. Resultado correto (vitória/empate/derrota) → 3 pts (Tipo: resultado -> ⚽)
+  const resultadoPalpite = mandante > visitante ? "C" : mandante < visitante ? "F" : "E";
+  const resultadoReal = jogoReal.placarMandante > jogoReal.placarVisitante ? "C" : jogoReal.placarMandante < jogoReal.placarVisitante ? "F" : "E";
 
   if (resultadoPalpite === resultadoReal) {
-    return { pontos: 3, acertou: true };
+    return { pontos: 3, tipo: "resultado" };
   }
 
-  return { pontos: 0, acertou: false };
+  // 3. Erro total → 0 pts (Tipo: erro -> ❌)
+  return { pontos: 0, tipo: "erro" };
 }
-
 
 //--------------------------------------------------
 // 📊 FUNÇÃO PRINCIPAL — CALCULAR A RODADA
 //--------------------------------------------------
 async function calcularPontuacaoRodada(rodadaId) {
-  console.log(`📊 Calculando pontuação da rodada ${rodadaId}...`);
+  console.log(`📊 Calculando pontuação detalhada da rodada ${rodadaId}...`);
 
   const rodada = await Rodada.findById(rodadaId);
   if (!rodada) throw new Error("Rodada não encontrada");
@@ -74,72 +60,54 @@ async function calcularPontuacaoRodada(rodadaId) {
     status: { $in: ["paga", "brinde", "ativa", "campeao", "finalizada"] }
   });
 
-  if (!apostas.length) {
-    console.log("⚠ Nenhuma aposta válida para calcular.");
-    return;
-  }
+  if (!apostas.length) return { sucesso: true, totalAtualizadas: 0 };
 
   let totalAtualizadas = 0;
 
-  //--------------------------------------------------
-  // PROCESSAR CADA APOSTA
-  //--------------------------------------------------
   for (const aposta of apostas) {
-
-    let melhorLinha = { numero: 1, pontos: 0, acertos: 0 };
+    let melhorLinha = { numero: 1, pontos: 0, acertos: { placar: 0, resultado: 0, erro: 0 } };
 
     aposta.palpites.forEach((linha, indexLinha) => {
       let pontosLinha = 0;
-      let acertosLinha = 0;
+      let detalhesAcertos = { placar: 0, resultado: 0, erro: 0 };
 
       linha.jogos.forEach((palpiteObj, idxJogo) => {
         const jogoReal = rodada.jogos[idxJogo];
         const resultado = calcularPontosDoJogo(palpiteObj, jogoReal);
 
-        // Salvar para depuração futura (não usado no ranking)
+        // Salvar metadados no palpite
         palpiteObj.pontos = resultado.pontos;
-        palpiteObj.acertou = resultado.acertou;
+        palpiteObj.tipoAcerto = resultado.tipo;
 
         pontosLinha += resultado.pontos;
-        if (resultado.acertou) acertosLinha++;
+        detalhesAcertos[resultado.tipo]++;
       });
 
-      // Guarda meta de linha
       linha.pontosLinha = pontosLinha;
-      linha.acertosLinha = acertosLinha;
+      linha.acertosDetalhado = detalhesAcertos;
 
-      // Atualiza melhor linha
+      // Critério de melhor linha: maior pontuação
       if (pontosLinha > melhorLinha.pontos) {
         melhorLinha = {
           numero: indexLinha + 1,
           pontos: pontosLinha,
-          acertos: acertosLinha
+          acertos: detalhesAcertos
         };
       }
     });
 
-    //--------------------------------------------------
-    // Gravar na aposta — APENAS dados de rodada
-    //--------------------------------------------------
     aposta.desempenhoRodada = {
       pontuacaoRodada: melhorLinha.pontos,
-      acertosRodada: melhorLinha.acertos,
+      acertosRodada: melhorLinha.acertos, // Agora é um objeto {placar, resultado, erro}
       melhorLinhaRodada: melhorLinha
     };
 
-    // NÃO ALTERAR STATUS AQUI!!!
-
     await aposta.save();
-    await atualizarEstatisticasUsuario(aposta.usuario);
+    if (aposta.usuario) await atualizarEstatisticasUsuario(aposta.usuario);
     totalAtualizadas++;
   }
 
-  console.log(`✅ ${totalAtualizadas} apostas atualizadas com pontuação da rodada.`);
-
-  return {
-    sucesso: true,
-    totalAtualizadas
-  };
+  return { sucesso: true, totalAtualizadas };
 }
 
 module.exports = { calcularPontuacaoRodada };
