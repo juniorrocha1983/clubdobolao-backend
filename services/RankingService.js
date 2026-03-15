@@ -1,4 +1,4 @@
-// services/RankingService.js — VERSÃO FINAL
+// services/RankingService.js — VERSÃO BLINDADA (Compatível com dados antigos e novos)
 const Aposta = require('../models/Aposta');
 const Rodada = require('../models/Rodada');
 const RankingRodada = require('../models/RankingRodada');
@@ -9,8 +9,8 @@ class RankingService {
     _extrairPlacar(p) {
         if (!p) return null;
         if (typeof p.palpite === "string") {
-            const [m, v] = p.palpite.split(/[xX-]/).map(Number);
-            return [m, v];
+            const partes = p.palpite.split(/[xX-]/).map(Number);
+            return partes.length === 2 ? partes : null;
         }
         return [
             Number.isFinite(p.palpiteMandante) ? p.palpiteMandante : null,
@@ -38,6 +38,8 @@ class RankingService {
     }
 
     async atualizarRankingRodada(rodadaId) {
+        console.log("🚀 Iniciando recalque de ranking para rodada:", rodadaId);
+        
         const rodada = await Rodada.findById(rodadaId);
         if (!rodada) throw new Error("Rodada não encontrada");
 
@@ -52,31 +54,36 @@ class RankingService {
         for (const aposta of apostas) {
             let melhorLinha = { numero: 1, pontos: 0, acertos: { placar: 0, resultado: 0, erro: 0 } };
 
-            aposta.palpites.forEach((linha, idxLinha) => {
-                let pontos = 0;
-                let acertosObj = { placar: 0, resultado: 0, erro: 0 };
+            if (aposta.palpites && Array.isArray(aposta.palpites)) {
+                aposta.palpites.forEach((linha, idxLinha) => {
+                    let pontos = 0;
+                    let acertosObj = { placar: 0, resultado: 0, erro: 0 };
 
-                linha.jogos.forEach((p, idxJogo) => {
-                    const res = this._pontuar(p, resultados[idxJogo]);
-                    pontos += res.pts;
-                    acertosObj[res.tipo]++;
+                    if (linha.jogos && Array.isArray(linha.jogos)) {
+                        linha.jogos.forEach((p, idxJogo) => {
+                            const res = this._pontuar(p, resultados[idxJogo]);
+                            pontos += res.pts;
+                            acertosObj[res.tipo]++;
+                        });
+                    }
+
+                    linha.pontosLinha = pontos;
+                    linha.acertosDetalhado = acertosObj;
+
+                    if (pontos >= melhorLinha.pontos) {
+                        melhorLinha = { numero: idxLinha + 1, pontos, acertos: acertosObj };
+                    }
                 });
+            }
 
-                linha.pontosLinha = pontos;
-                linha.acertosDetalhado = acertosObj;
-
-                if (pontos > melhorLinha.pontos) {
-                    melhorLinha = { numero: idxLinha + 1, pontos, acertos: acertosObj };
-                }
-            });
-
+            // Salva a atualização no banco convertendo o formato antigo para o novo
             await Aposta.updateOne(
                 { _id: aposta._id },
                 { $set: { 
                     palpites: aposta.palpites,
                     desempenhoRodada: {
                         pontuacaoRodada: melhorLinha.pontos,
-                        acertosRodada: melhorLinha.acertos,
+                        acertosRodada: melhorLinha.acertos, // Aqui salva como OBJETO agora
                         melhorLinhaRodada: melhorLinha
                     }
                 }}
@@ -103,14 +110,18 @@ class RankingService {
 
         await RankingRodada.findOneAndUpdate(
             { rodadaId },
-            { rodadaId, rodadaNome: rodada.nome, participantes: rankingData.length, ranking: rankingData, atualizadoEm: new Date() },
+            { 
+                rodadaId, 
+                rodadaNome: rodada.nome, 
+                participantes: rankingData.length, 
+                ranking: rankingData, 
+                atualizadoEm: new Date() 
+            },
             { upsert: true }
         );
 
         return rankingData;
     }
-
-    // ... (Manter atualizarRankingGeral e atualizarRankingTorcida conforme sua versão original)
 }
 
 module.exports = new RankingService();
