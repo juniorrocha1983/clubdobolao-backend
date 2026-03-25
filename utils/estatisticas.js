@@ -3,34 +3,32 @@ const User = require('../models/User');
 const Aposta = require('../models/Aposta');
 
 // 🎯 ATUALIZAR ESTATÍSTICAS DO USUÁRIO
+// utils/estatisticas.js
+
 async function atualizarEstatisticasUsuario(userId) {
     try {
-        console.log('📊 Atualizando estatísticas do usuário:', userId);
-        
-        // Buscar apostas do usuário
         const apostas = await Aposta.find({ 
             usuario: userId,
-            status: 'paga'
-        }).populate('rodada');
-        
-        // Calcular estatísticas
+            status: 'paga' // Só conta o que foi pago
+        });
+
         const estatisticas = {
             rodadasParticipadas: apostas.length,
-            pontuacaoTotal: apostas.reduce((total, aposta) => total + (aposta.pontos || 0), 0),
-            premiosGanhos: apostas.filter(aposta => aposta.pontos > 20).length, // Exemplo
-            rankingGeral: '--', // Será calculado comparando com outros usuários
-            rankingMes: '--'   // Será calculado por mês
+            // 🚩 CORREÇÃO AQUI: Busca dentro de desempenhoRodada.pontuacaoRodada
+            pontuacaoTotal: apostas.reduce((total, aposta) => {
+                return total + (aposta.desempenhoRodada?.pontuacaoRodada || 0);
+            }, 0),
+            premiosGanhos: apostas.filter(aposta => aposta.vencedora === true).length,
+            rankingGeral: "--"
         };
-        
-        // Atualizar usuário
+
+        // Salva de fato no banco Atlas
         await User.findByIdAndUpdate(userId, { estatisticas });
         
-        console.log('✅ Estatísticas atualizadas para usuário:', userId);
+        console.log(`✅ Estatísticas do usuário ${userId} atualizadas no Atlas!`);
         return estatisticas;
-        
     } catch (error) {
         console.error('❌ Erro ao atualizar estatísticas:', error);
-        throw error;
     }
 }
 
