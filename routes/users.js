@@ -107,49 +107,45 @@ router.put('/update', auth, async (req, res) => {
 // 🎯 FUNÇÃO PARA GERAR ESTATÍSTICAS DO USUÁRIO
 async function gerarEstatisticasUsuario(userId) {
     try {
-        // Buscar todas as apostas do usuário
-        const apostas = await Aposta.find({ usuario: userId })
-            .populate('rodada')
-            .sort({ dataCriacao: -1 });
+        const apostas = await Aposta.find({ 
+            usuario: userId,
+            status: { $in: ["paga", "brinde", "ativa", "campeao", "finalizada"] }
+        }).populate('rodada');
 
-        // Calcular estatísticas
-        const rodadasParticipadas = new Set(apostas.map(a => a.rodada?._id?.toString())).size;
+        const rodadasUnicas = new Set(
+            apostas.map(a => a.rodada?._id?.toString())
+        );
 
-        // Pontuação (simulada - você precisa implementar a lógica real)
-        let pontosTemporada = 0;
-        let pontosMes = 0;
+        const pontosTemporada = apostas.reduce((total, aposta) => {
+            return total + (aposta.desempenhoRodada?.pontuacaoRodada || 0);
+        }, 0);
+
+        // pontos do mês
         const mesAtual = new Date().getMonth();
         const anoAtual = new Date().getFullYear();
 
-        apostas.forEach(aposta => {
-            if (aposta.status === 'paga' || aposta.status === 'brinde') {
-                // Simular pontos baseados no número de linhas
-                const pontosAposta = aposta.numLinhas * 2;
-                pontosTemporada += pontosAposta;
+        const pontosMes = apostas.reduce((total, aposta) => {
+            const data = new Date(aposta.createdAt);
 
-                // Verificar se é do mês atual
-                const dataAposta = new Date(aposta.dataCriacao);
-                if (dataAposta.getMonth() === mesAtual && dataAposta.getFullYear() === anoAtual) {
-                    pontosMes += pontosAposta;
-                }
+            if (
+                data.getMonth() === mesAtual &&
+                data.getFullYear() === anoAtual
+            ) {
+                return total + (aposta.desempenhoRodada?.pontuacaoRodada || 0);
             }
-        });
 
-        // Buscar ranking (simulado)
-        const totalUsuarios = await User.countDocuments();
-        const rankingGeral = Math.max(1, Math.min(totalUsuarios, Math.floor(Math.random() * totalUsuarios) + 1));
-        const rankingMes = Math.max(1, Math.min(50, Math.floor(Math.random() * 50) + 1));
+            return total;
+        }, 0);
 
         return {
             pontosMes,
             pontosTemporada,
-            rankingMes: `${rankingMes}º`,
-            rankingGeral: `${rankingGeral}º`,
-            rodadasParticipadas,
-            totalApostas: apostas.length,
-            apostasAtivas: apostas.filter(a => a.status === 'paga' || a.status === 'brinde').length,
-            apostasPendentes: apostas.filter(a => a.status === 'pendente').length
+            rankingMes: '--',
+            rankingGeral: '--',
+            rodadasParticipadas: rodadasUnicas.size,
+            totalApostas: apostas.length
         };
+
     } catch (error) {
         console.error('❌ Erro ao gerar estatísticas:', error);
         return {
@@ -158,9 +154,7 @@ async function gerarEstatisticasUsuario(userId) {
             rankingMes: '--',
             rankingGeral: '--',
             rodadasParticipadas: 0,
-            totalApostas: 0,
-            apostasAtivas: 0,
-            apostasPendentes: 0
+            totalApostas: 0
         };
     }
 }
