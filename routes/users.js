@@ -52,7 +52,7 @@ router.get("/me", auth, async (req, res) => {
 });*/
 
 // 🎯 GET /api/usuario/estatisticas - Estatísticas detalhadas
-/*router.get('/estatisticas', auth, async (req, res) => {
+router.get('/estatisticas', auth, async (req, res) => {
     try {
         const estatisticas = await gerarEstatisticasUsuario(req.user.id);
         res.json(estatisticas);
@@ -60,7 +60,7 @@ router.get("/me", auth, async (req, res) => {
         console.error('❌ Erro ao buscar estatísticas:', error);
         res.status(500).json({ error: 'Erro interno do servidor' });
     }
-});*/
+});
 
 
 // 🛠️ PUT /api/usuario/update - Atualiza dados do usuário logado
