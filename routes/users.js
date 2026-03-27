@@ -105,7 +105,7 @@ router.put('/update', auth, async (req, res) => {
 });
 
 // 🎯 FUNÇÃO PARA GERAR ESTATÍSTICAS DO USUÁRIO
-/*async function gerarEstatisticasUsuario(userId) {
+async function gerarEstatisticasUsuario(userId) {
     try {
         // Buscar todas as apostas do usuário
         const apostas = await Aposta.find({ usuario: userId })
@@ -163,7 +163,7 @@ router.put('/update', auth, async (req, res) => {
             apostasPendentes: 0
         };
     }
-}*/
+}
 
 // 🔒 ALTERAR STATUS DO USUÁRIO (Admin)
 router.put("/status/:id", protect, adminOnly, async (req, res) => {
