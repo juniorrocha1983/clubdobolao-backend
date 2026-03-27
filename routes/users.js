@@ -120,7 +120,6 @@ async function gerarEstatisticasUsuario(userId) {
             return total + (aposta.desempenhoRodada?.pontuacaoRodada || 0);
         }, 0);
 
-        // pontos do mês
         const mesAtual = new Date().getMonth();
         const anoAtual = new Date().getFullYear();
 
@@ -137,7 +136,7 @@ async function gerarEstatisticasUsuario(userId) {
             return total;
         }, 0);
 
-        return {
+        const estatisticas = {
             pontosMes,
             pontosTemporada,
             rankingMes: '--',
@@ -146,16 +145,16 @@ async function gerarEstatisticasUsuario(userId) {
             totalApostas: apostas.length
         };
 
+        // 💥 AQUI ESTÁ A MÁGICA QUE FALTAVA
+        await User.findByIdAndUpdate(userId, {
+            estatisticas
+        });
+
+        return estatisticas;
+
     } catch (error) {
         console.error('❌ Erro ao gerar estatísticas:', error);
-        return {
-            pontosMes: 0,
-            pontosTemporada: 0,
-            rankingMes: '--',
-            rankingGeral: '--',
-            rodadasParticipadas: 0,
-            totalApostas: 0
-        };
+        return null;
     }
 }
 
