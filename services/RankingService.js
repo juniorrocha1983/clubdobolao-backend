@@ -143,64 +143,68 @@ class RankingService {
 
         return rankingData;
     }
-     
-    /* =====================================================
-    🏆 RANKING GERAL DA TEMPORADA
-    ====================================================== */
-// Função auxiliar interna para somar a cartela cheia
-_calcularTotalRealCartela(aposta) {
-    if (!aposta.palpites) return 0;
-    return aposta.palpites.reduce((total, linha) => total + (linha.pontosLinha || 0), 0);
-}
 
-// A sua nova função de Ranking Geral revisada
-async atualizarRankingGeral() {
-    // Busca todas as apostas válidas
-    const apostas = await Aposta.find({
-        status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
-    }).populate("usuario", "apelido timeCoracao");
+    /* ======================================================
+       🏆 RANKING GERAL DA TEMPORADA
+       ====================================================== */
+    async atualizarRankingGeral() {
 
-    const acumulado = {};
+        const apostas = await Aposta.find({
+            status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
+        })
+            .populate("usuario", "apelido timeCoracao")
+            .populate("rodada");
 
-    for (const a of apostas) {
-        if (!a.usuario) continue;
-        const userId = a.usuario._id.toString();
+        const acumulado = {};
 
-        if (!acumulado[userId]) {
-            acumulado[userId] = {
-                usuarioId: userId,
-                apelido: a.usuario.apelido,
-                timeCoracao: a.usuario.timeCoracao,
-                totalPontos: 0,
-                rodadasSet: new Set()
-            };
+        for (const a of apostas) {
+
+            const usuario = a.usuario;
+            if (!usuario) continue;
+
+            const userId = usuario._id.toString();
+
+            if (!acumulado[userId]) {
+                acumulado[userId] = {
+                    usuarioId: userId,
+                    apelido: usuario.apelido,
+                    timeCoracao: usuario.timeCoracao,
+                    totalPontos: 0,
+                    rodadasSet: new Set()
+                };
+            }
+
+            // 💥 CORREÇÃO AQUI
+            const pontos = a.desempenhoRodada?.pontuacaoRodada || 0;
+
+            acumulado[userId].totalPontos += pontos;
+
+            if (a.rodada?._id) {
+                acumulado[userId].rodadasSet.add(a.rodada._id.toString());
+            }
         }
 
-        // 🔥 A MÁGICA: Soma o total real (todas as linhas) desta cartela
-        const pontosCartelaCheia = this._calcularTotalRealCartela(a);
-        
-        acumulado[userId].totalPontos += pontosCartelaCheia;
-        if (a.rodada) acumulado[userId].rodadasSet.add(a.rodada.toString());
+        // 🔢 Converte para array e finaliza dados
+        const ranking = Object.values(acumulado)
+            .map(user => ({
+                usuarioId: user.usuarioId,
+                apelido: user.apelido,
+                timeCoracao: user.timeCoracao,
+                totalPontos: user.totalPontos,
+                totalApostas: user.rodadasSet.size // 👈 rodadas participadas
+            }))
+            .sort((a, b) => b.totalPontos - a.totalPontos)
+            .map((user, index) => ({
+                ...user,
+                posicao: index + 1
+            }));
+
+        // 🔄 Atualiza coleção
+        await RankingGeral.deleteMany({});
+        await RankingGeral.insertMany(ranking);
+
+        return ranking;
     }
-
-    // Transforma em array para o banco
-    const ranking = Object.values(acumulado)
-        .map(user => ({
-            usuarioId: user.usuarioId,
-            apelido: user.apelido,
-            timeCoracao: user.timeCoracao,
-            totalPontos: user.totalPontos,
-            totalApostas: user.rodadasSet.size
-        }))
-        .sort((a, b) => b.totalPontos - a.totalPontos)
-        .map((user, index) => ({ ...user, posicao: index + 1 }));
-
-    // Salva na coleção RankingGeral
-    await RankingGeral.deleteMany({});
-    await RankingGeral.insertMany(ranking);
-
-    return ranking;
-}
 
 
     /* ======================================================
