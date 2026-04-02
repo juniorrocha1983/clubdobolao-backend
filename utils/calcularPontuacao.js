@@ -142,16 +142,4 @@ async function calcularPontuacaoRodada(rodadaId) {
   };
 }
 
-// 🎯 FUNÇÃO EXCLUSIVA PARA CALCULAR O ACUMULADO DO RANKING GERAL
-function calcularTotalAcumuladoCartela(aposta) {
-    if (!aposta.palpites || aposta.palpites.length === 0) return 0;
-
-    // Varre todas as linhas da cartela e soma os pontos de cada uma
-    const somaTotal = aposta.palpites.reduce((acc, linha) => {
-        return acc + (linha.pontosLinha || 0);
-    }, 0);
-
-    return somaTotal;
-}
-
 module.exports = { calcularPontuacaoRodada };
