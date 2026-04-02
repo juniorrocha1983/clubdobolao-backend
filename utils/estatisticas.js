@@ -79,6 +79,7 @@ async function atualizarEstatisticasUsuario(userId) {
     }
 }
 
+
 // 🎯 CALCULAR RANKING GERAL
 async function calcularRankingGeral() {
     try {
