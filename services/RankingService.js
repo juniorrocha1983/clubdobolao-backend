@@ -147,18 +147,17 @@ class RankingService {
     /* ======================================================
        🏆 RANKING GERAL DA TEMPORADA
        ====================================================== */
-    async atualizarRankingGeral() {
-
+async function atualizarRankingGeral() {
+    try {
         const apostas = await Aposta.find({
             status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
         })
-            .populate("usuario", "apelido timeCoracao")
-            .populate("rodada");
+        .populate("usuario", "apelido timeCoracao")
+        .populate("rodada");
 
         const acumulado = {};
 
         for (const a of apostas) {
-
             const usuario = a.usuario;
             if (!usuario) continue;
 
@@ -174,24 +173,34 @@ class RankingService {
                 };
             }
 
-            // 💥 CORREÇÃO AQUI
-            const pontos = a.desempenhoRodada?.pontuacaoRodada || 0;
+            // 🎯 LÓGICA DE SOMA REVISADA:
+            let pontosDestaAposta = 0;
 
-            acumulado[userId].totalPontos += pontos;
+            // Tentativa 1: Somar todas as linhas individualmente (Garante o total real)
+            if (a.palpites && a.palpites.length > 0) {
+                pontosDestaAposta = a.palpites.reduce((acc, linha) => acc + (linha.pontosLinha || 0), 0);
+            } 
+            
+            // Tentativa 2: Se a soma das linhas der 0, mas houver valor no campo de pontuação, usa ele (Fallback)
+            if (pontosDestaAposta === 0 && a.desempenhoRodada?.pontuacaoRodada) {
+                pontosDestaAposta = a.desempenhoRodada.pontuacaoRodada;
+            }
+
+            acumulado[userId].totalPontos += pontosDestaAposta;
 
             if (a.rodada?._id) {
                 acumulado[userId].rodadasSet.add(a.rodada._id.toString());
             }
         }
 
-        // 🔢 Converte para array e finaliza dados
+        // 🔢 Converte para array, ordena e gera posições
         const ranking = Object.values(acumulado)
             .map(user => ({
                 usuarioId: user.usuarioId,
                 apelido: user.apelido,
                 timeCoracao: user.timeCoracao,
                 totalPontos: user.totalPontos,
-                totalApostas: user.rodadasSet.size // 👈 rodadas participadas
+                totalApostas: user.rodadasSet.size
             }))
             .sort((a, b) => b.totalPontos - a.totalPontos)
             .map((user, index) => ({
@@ -199,12 +208,20 @@ class RankingService {
                 posicao: index + 1
             }));
 
-        // 🔄 Atualiza coleção
+        // 🔄 Atualiza a coleção no banco
         await RankingGeral.deleteMany({});
-        await RankingGeral.insertMany(ranking);
+        if (ranking.length > 0) {
+            await RankingGeral.insertMany(ranking);
+        }
 
+        console.log(`✅ Ranking Geral atualizado com ${ranking.length} jogadores.`);
         return ranking;
+
+    } catch (error) {
+        console.error("❌ Erro ao atualizar Ranking Geral:", error);
+        throw error;
     }
+}
 
 
     /* ======================================================
