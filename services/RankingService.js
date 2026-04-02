@@ -143,7 +143,10 @@ class RankingService {
 
         return rankingData;
     }
-
+     
+    /* =====================================================
+    🏆 RANKING GERAL DA TEMPORADA
+    ====================================================== */
 // Função auxiliar interna para somar a cartela cheia
 _calcularTotalRealCartela(aposta) {
     if (!aposta.palpites) return 0;
