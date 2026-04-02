@@ -47,7 +47,7 @@ async function atualizarEstatisticasUsuario(userId) {
 
         const rodadasUnicas = new Set(apostas.map(a => a.rodada.toString()));
 
-        // 🧮 NOVA LÓGICA DE SOMA TOTAL
+        // 🧮 NOVA LÓGICA DE SOMA TOTAl
         let pontuacaoTotalAcumulada = 0;
 
         apostas.forEach(aposta => {
