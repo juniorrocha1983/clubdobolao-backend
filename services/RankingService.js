@@ -144,67 +144,74 @@ class RankingService {
         return rankingData;
     }
 
+    
+  
     /* ======================================================
        🏆 RANKING GERAL DA TEMPORADA
-       ====================================================== */
-    async atualizarRankingGeral() {
+       ====================================================== */  
 
+    async atualizarRankingGeral() {
+    try {
         const apostas = await Aposta.find({
             status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
-        })
-            .populate("usuario", "apelido timeCoracao")
-            .populate("rodada");
+        }).populate("usuario", "apelido timeCoracao");
 
         const acumulado = {};
 
         for (const a of apostas) {
-
-            const usuario = a.usuario;
-            if (!usuario) continue;
-
-            const userId = usuario._id.toString();
+            if (!a.usuario) continue;
+            const userId = a.usuario._id.toString();
 
             if (!acumulado[userId]) {
                 acumulado[userId] = {
                     usuarioId: userId,
-                    apelido: usuario.apelido,
-                    timeCoracao: usuario.timeCoracao,
-                    totalPontos: 0,
+                    apelido: a.usuario.apelido,
+                    timeCoracao: a.usuario.timeCoracao,
+                    totalPoints: 0,
                     rodadasSet: new Set()
                 };
             }
 
-            // 💥 CORREÇÃO AQUI
-            const pontos = a.desempenhoRodada?.pontuacaoRodada || 0;
+            let somaDestaAposta = 0;
 
-            acumulado[userId].totalPontos += pontos;
-
-            if (a.rodada?._id) {
-                acumulado[userId].rodadasSet.add(a.rodada._id.toString());
+            // 🔍 ESTRATÉGIA DE SOMA BASEADA NO SEU JSON:
+            // No seu JSON, o total da MELHOR LINHA está em desempenhoRodada.pontuacaoRodada (14 pts)
+            // Se você quer que o Ranking Geral some TODAS as linhas, 
+            // e como elas não têm o campo 'pontosLinha' ainda, vamos ter que 
+            // usar o valor que você já calculou para a rodada por enquanto.
+            
+            if (a.desempenhoRodada && a.desempenhoRodada.pontuacaoRodada) {
+                somaDestaAposta = Number(a.desempenhoRodada.pontuacaoRodada);
             }
+
+            // 💡 NOTA: Se você passar a salvar 'pontosLinha' dentro de cada palpite 
+            // no futuro, você poderá somar todas as linhas aqui.
+
+            acumulado[userId].totalPoints += somaDestaAposta;
+            if (a.rodada) acumulado[userId].rodadasSet.add(a.rodada.toString());
         }
 
-        // 🔢 Converte para array e finaliza dados
         const ranking = Object.values(acumulado)
             .map(user => ({
                 usuarioId: user.usuarioId,
                 apelido: user.apelido,
                 timeCoracao: user.timeCoracao,
-                totalPontos: user.totalPontos,
-                totalApostas: user.rodadasSet.size // 👈 rodadas participadas
+                totalPontos: user.totalPoints, // Aqui vai os 14 pts (ou a soma)
+                totalApostas: user.rodadasSet.size
             }))
             .sort((a, b) => b.totalPontos - a.totalPontos)
-            .map((user, index) => ({
-                ...user,
-                posicao: index + 1
-            }));
+            .map((user, index) => ({ ...user, posicao: index + 1 }));
 
-        // 🔄 Atualiza coleção
         await RankingGeral.deleteMany({});
-        await RankingGeral.insertMany(ranking);
+        if (ranking.length > 0) {
+            await RankingGeral.insertMany(ranking);
+        }
 
         return ranking;
+    } catch (error) {
+        console.error("Erro no Ranking:", error);
     }
+}
 
 
     /* ======================================================
