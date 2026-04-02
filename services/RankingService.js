@@ -144,83 +144,59 @@ class RankingService {
         return rankingData;
     }
 
-    /* ======================================================
-       🏆 RANKING GERAL DA TEMPORADA
-       ====================================================== */
-async function atualizarRankingGeral() {
-    try {
-        const apostas = await Aposta.find({
-            status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
-        })
-        .populate("usuario", "apelido timeCoracao")
-        .populate("rodada");
+// Função auxiliar interna para somar a cartela cheia
+_calcularTotalRealCartela(aposta) {
+    if (!aposta.palpites) return 0;
+    return aposta.palpites.reduce((total, linha) => total + (linha.pontosLinha || 0), 0);
+}
 
-        const acumulado = {};
+// A sua nova função de Ranking Geral revisada
+async atualizarRankingGeral() {
+    // Busca todas as apostas válidas
+    const apostas = await Aposta.find({
+        status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
+    }).populate("usuario", "apelido timeCoracao");
 
-        for (const a of apostas) {
-            const usuario = a.usuario;
-            if (!usuario) continue;
+    const acumulado = {};
 
-            const userId = usuario._id.toString();
+    for (const a of apostas) {
+        if (!a.usuario) continue;
+        const userId = a.usuario._id.toString();
 
-            if (!acumulado[userId]) {
-                acumulado[userId] = {
-                    usuarioId: userId,
-                    apelido: usuario.apelido,
-                    timeCoracao: usuario.timeCoracao,
-                    totalPontos: 0,
-                    rodadasSet: new Set()
-                };
-            }
-
-            // 🎯 LÓGICA DE SOMA REVISADA:
-            let pontosDestaAposta = 0;
-
-            // Tentativa 1: Somar todas as linhas individualmente (Garante o total real)
-            if (a.palpites && a.palpites.length > 0) {
-                pontosDestaAposta = a.palpites.reduce((acc, linha) => acc + (linha.pontosLinha || 0), 0);
-            } 
-            
-            // Tentativa 2: Se a soma das linhas der 0, mas houver valor no campo de pontuação, usa ele (Fallback)
-            if (pontosDestaAposta === 0 && a.desempenhoRodada?.pontuacaoRodada) {
-                pontosDestaAposta = a.desempenhoRodada.pontuacaoRodada;
-            }
-
-            acumulado[userId].totalPontos += pontosDestaAposta;
-
-            if (a.rodada?._id) {
-                acumulado[userId].rodadasSet.add(a.rodada._id.toString());
-            }
+        if (!acumulado[userId]) {
+            acumulado[userId] = {
+                usuarioId: userId,
+                apelido: a.usuario.apelido,
+                timeCoracao: a.usuario.timeCoracao,
+                totalPontos: 0,
+                rodadasSet: new Set()
+            };
         }
 
-        // 🔢 Converte para array, ordena e gera posições
-        const ranking = Object.values(acumulado)
-            .map(user => ({
-                usuarioId: user.usuarioId,
-                apelido: user.apelido,
-                timeCoracao: user.timeCoracao,
-                totalPontos: user.totalPontos,
-                totalApostas: user.rodadasSet.size
-            }))
-            .sort((a, b) => b.totalPontos - a.totalPontos)
-            .map((user, index) => ({
-                ...user,
-                posicao: index + 1
-            }));
-
-        // 🔄 Atualiza a coleção no banco
-        await RankingGeral.deleteMany({});
-        if (ranking.length > 0) {
-            await RankingGeral.insertMany(ranking);
-        }
-
-        console.log(`✅ Ranking Geral atualizado com ${ranking.length} jogadores.`);
-        return ranking;
-
-    } catch (error) {
-        console.error("❌ Erro ao atualizar Ranking Geral:", error);
-        throw error;
+        // 🔥 A MÁGICA: Soma o total real (todas as linhas) desta cartela
+        const pontosCartelaCheia = this._calcularTotalRealCartela(a);
+        
+        acumulado[userId].totalPontos += pontosCartelaCheia;
+        if (a.rodada) acumulado[userId].rodadasSet.add(a.rodada.toString());
     }
+
+    // Transforma em array para o banco
+    const ranking = Object.values(acumulado)
+        .map(user => ({
+            usuarioId: user.usuarioId,
+            apelido: user.apelido,
+            timeCoracao: user.timeCoracao,
+            totalPontos: user.totalPontos,
+            totalApostas: user.rodadasSet.size
+        }))
+        .sort((a, b) => b.totalPontos - a.totalPontos)
+        .map((user, index) => ({ ...user, posicao: index + 1 }));
+
+    // Salva na coleção RankingGeral
+    await RankingGeral.deleteMany({});
+    await RankingGeral.insertMany(ranking);
+
+    return ranking;
 }
 
 
