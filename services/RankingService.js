@@ -45,10 +45,9 @@ class RankingService {
     }
 
     /* ======================================================
-       🏁 RANKING DA RODADA (RANKING DENSO)
-       ====================================================== */
+       🏁 RANKING DA RODADA (MELHOR LINHA)
+    ====================================================== */
     async atualizarRankingRodada(rodadaId) {
-
         const rodada = await Rodada.findById(rodadaId);
         if (!rodada) throw new Error("Rodada não encontrada");
 
@@ -61,8 +60,8 @@ class RankingService {
         const rankingData = [];
 
         for (const aposta of apostas) {
-
             let melhorLinha = { numero: 1, pontos: 0, acertos: 0 };
+            let pontosCartelaTotal = 0; // 🔥 Soma de TODAS as linhas da cartela
 
             aposta.palpites.forEach((linha, idxLinha) => {
                 let pontos = 0;
@@ -76,7 +75,11 @@ class RankingService {
 
                 linha.pontosLinha = pontos;
                 linha.acertos = acertos;
+                
+                // Acumula para o total da cartela (Ranking Geral)
+                pontosCartelaTotal += pontos; 
 
+                // Verifica se esta é a melhor linha individual (Ranking da Rodada)
                 if (pontos > melhorLinha.pontos) {
                     melhorLinha = {
                         numero: idxLinha + 1,
@@ -86,13 +89,15 @@ class RankingService {
                 }
             });
 
+            // Salva no banco de dados os dois valores
             await Aposta.updateOne(
                 { _id: aposta._id },
                 {
                     $set: {
                         palpites: aposta.palpites,
                         desempenhoRodada: {
-                            pontuacaoRodada: melhorLinha.pontos,
+                            pontuacaoRodada: melhorLinha.pontos, // Melhor linha (para prêmio da rodada)
+                            pontuacaoTotalCartela: pontosCartelaTotal, // Soma total (para o Ranking Geral)
                             acertosRodada: melhorLinha.acertos,
                             melhorLinhaRodada: melhorLinha
                         }
@@ -109,13 +114,12 @@ class RankingService {
             });
         }
 
-        // Ordenação
+        // Ordenação do Ranking da Rodada (Permanece por Melhor Linha)
         rankingData.sort((a, b) =>
             b.melhorLinha.pontos - a.melhorLinha.pontos ||
             a.createdAt - b.createdAt
         );
 
-        // 🔥 Ranking denso (sem pular posição)
         let posicaoAtual = 1;
         let ultimaPontuacao = null;
 
@@ -144,79 +148,68 @@ class RankingService {
         return rankingData;
     }
 
-    
-  
     /* ======================================================
-       🏆 RANKING GERAL DA TEMPORADA
-       ====================================================== */  
-
+       🏆 RANKING GERAL (SOMA DAS CARTELAS)
+    ====================================================== */
     async atualizarRankingGeral() {
-    try {
-        const apostas = await Aposta.find({
-            status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
-        }).populate("usuario", "apelido timeCoracao");
+        try {
+            const apostas = await Aposta.find({
+                status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
+            }).populate("usuario", "apelido timeCoracao");
 
-        const acumulado = {};
+            const acumulado = {};
 
-        for (const a of apostas) {
-            if (!a.usuario) continue;
-            const userId = a.usuario._id.toString();
+            for (const a of apostas) {
+                if (!a.usuario) continue;
+                const userId = a.usuario._id.toString();
 
-            if (!acumulado[userId]) {
-                acumulado[userId] = {
-                    usuarioId: userId,
-                    apelido: a.usuario.apelido,
-                    timeCoracao: a.usuario.timeCoracao,
-                    totalPoints: 0,
-                    rodadasSet: new Set()
-                };
+                if (!acumulado[userId]) {
+                    acumulado[userId] = {
+                        usuarioId: userId,
+                        apelido: a.usuario.apelido,
+                        timeCoracao: a.usuario.timeCoracao,
+                        totalPoints: 0,
+                        rodadasSet: new Set()
+                    };
+                }
+
+                let somaDestaAposta = 0;
+
+                // 🔥 BUSCA A SOMA TOTAL DA CARTELA SALVA NO PASSO ANTERIOR
+                if (a.desempenhoRodada) {
+                    // Prioriza o total da cartela; se não existir (apostas antigas), usa a pontuação da rodada
+                    somaDestaAposta = Number(a.desempenhoRodada.pontuacaoTotalCartela || a.desempenhoRodada.pontuacaoRodada || 0);
+                }
+
+                acumulado[userId].totalPoints += somaDestaAposta;
+                if (a.rodada) acumulado[userId].rodadasSet.add(a.rodada.toString());
             }
 
-            let somaDestaAposta = 0;
+            const ranking = Object.values(acumulado)
+                .map(user => ({
+                    usuarioId: user.usuarioId,
+                    apelido: user.apelido,
+                    timeCoracao: user.timeCoracao,
+                    totalPontos: user.totalPoints,
+                    totalApostas: user.rodadasSet.size
+                }))
+                .sort((a, b) => b.totalPontos - a.totalPontos)
+                .map((user, index) => ({ ...user, posicao: index + 1 }));
 
-            // 🔍 ESTRATÉGIA DE SOMA BASEADA NO SEU JSON:
-            // No seu JSON, o total da MELHOR LINHA está em desempenhoRodada.pontuacaoRodada (14 pts)
-            // Se você quer que o Ranking Geral some TODAS as linhas, 
-            // e como elas não têm o campo 'pontosLinha' ainda, vamos ter que 
-            // usar o valor que você já calculou para a rodada por enquanto.
-            
-            if (a.desempenhoRodada && a.desempenhoRodada.pontuacaoRodada) {
-                somaDestaAposta = Number(a.desempenhoRodada.pontuacaoRodada);
+            await RankingGeral.deleteMany({});
+            if (ranking.length > 0) {
+                await RankingGeral.insertMany(ranking);
             }
 
-            // 💡 NOTA: Se você passar a salvar 'pontosLinha' dentro de cada palpite 
-            // no futuro, você poderá somar todas as linhas aqui.
-
-            acumulado[userId].totalPoints += somaDestaAposta;
-            if (a.rodada) acumulado[userId].rodadasSet.add(a.rodada.toString());
+            return ranking;
+        } catch (error) {
+            console.error("❌ Erro no Ranking Geral:", error);
         }
-
-        const ranking = Object.values(acumulado)
-            .map(user => ({
-                usuarioId: user.usuarioId,
-                apelido: user.apelido,
-                timeCoracao: user.timeCoracao,
-                totalPontos: user.totalPoints, // Aqui vai os 14 pts (ou a soma)
-                totalApostas: user.rodadasSet.size
-            }))
-            .sort((a, b) => b.totalPontos - a.totalPontos)
-            .map((user, index) => ({ ...user, posicao: index + 1 }));
-
-        await RankingGeral.deleteMany({});
-        if (ranking.length > 0) {
-            await RankingGeral.insertMany(ranking);
-        }
-
-        return ranking;
-    } catch (error) {
-        console.error("Erro no Ranking:", error);
     }
-}
-
 
     /* ======================================================
        ⚽ RANKING DE TORCIDAS
-       ====================================================== */
+    ====================================================== */
     async atualizarRankingTorcida() {
         const usuarios = await User.find({}, "timeCoracao").lean();
         const contagem = {};
@@ -244,9 +237,11 @@ class RankingService {
 
     /* ======================================================
        🚀 EXECUTA TUDO
-       ====================================================== */
+    ====================================================== */
     async atualizarTudo(rodadaId) {
+        // Primeiro calcula a rodada para gerar o campo 'pontuacaoTotalCartela'
         await this.atualizarRankingRodada(rodadaId);
+        // Depois o geral utiliza os valores novos salvos
         await this.atualizarRankingGeral();
         await this.atualizarRankingTorcida();
         await registrarCampeao(rodadaId);
