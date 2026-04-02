@@ -74,6 +74,8 @@ const apostaSchema = new mongoose.Schema({
 
     desempenhoRodada: {
         pontuacaoRodada: { type: Number, default: 0 },
+            pontuacaoTotalCartela: { type: Number, default: 0 }, // 🔥 ADICIONE ESTA LINHA AQUI
+
         acertosRodada: { type: mongoose.Schema.Types.Mixed, default: 0 }, // Alterado para Mixed
         melhorLinhaRodada: {
             numero: { type: Number, default: 1 },
