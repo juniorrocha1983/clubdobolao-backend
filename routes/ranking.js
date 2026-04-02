@@ -61,10 +61,14 @@ router.get('/torcidas', async (req, res) => {
 // ============================================================
 // 🏆 RANKING GERAL DA TEMPORADA
 // ============================================================
+// ============================================================
+// 🏆 RANKING GERAL DA TEMPORADA (ATUALIZADO)
+// ============================================================
 router.get('/geral', async (req, res) => {
   try {
+    // 1. Ordenamos APENAS pelo campo correto: totalPontos
     const geral = await RankingGeral.find()
-      .sort({ totalPontos: -1, pontuacaoGeral: -1, pontosTotais: -1 })
+      .sort({ totalPontos: -1 })
       .lean();
 
     if (!geral || geral.length === 0) {
@@ -77,7 +81,8 @@ router.get('/geral', async (req, res) => {
         posicao: i + 1,
         apelido: r.apelido,
         timeCoracao: r.timeCoracao,
-        totalPontos: r.totalPontos ?? r.pontuacaoGeral ?? r.pontosTotais ?? 0,
+        // 2. 🔥 Forçamos o uso APENAS do totalPontos que calculamos no Service
+        totalPontos: r.totalPontos || 0, 
         totalApostas: r.totalApostas,
       })),
     });
