@@ -242,8 +242,7 @@ class RankingService {
         await this.atualizarRankingRodada(rodadaId);
         await this.atualizarRankingGeral();
 
-        // ✅ AQUI É O LUGAR CERTO
-        await this.atualizarEstatisticasUsuarios();
+       
 
         await this.atualizarRankingTorcida();
         await registrarCampeao(rodadaId);
