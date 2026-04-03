@@ -175,7 +175,7 @@ class RankingService {
             }
 
             // 💥 CORREÇÃO AQUI
-            const pontos = a.desempenhoRodada?.pontuacaoTotalCartela || 0;
+            const pontos = a.desempenhoRodada?.pontuacaoRodada || 0;
 
             acumulado[userId].totalPontos += pontos;
 
@@ -239,7 +239,7 @@ class RankingService {
        🚀 EXECUTA TUDO
        ====================================================== */
     async atualizarTudo(rodadaId) {
-      await this.atualizarRankingRodada(rodadaId);
+        await this.atualizarRankingRodada(rodadaId);
         await this.atualizarRankingGeral();
 
         // ✅ AQUI É O LUGAR CERTO
