@@ -86,8 +86,6 @@ router.get('/geral', async (req, res) => {
     res.status(500).json({ error: 'Erro ao buscar ranking geral', detalhes: error.message });
   }
 });
-
-
 // ============================================================
 // 🚀 REPROCESSAR TODOS OS RANKINGS (manual via painel admin)
 // ============================================================
