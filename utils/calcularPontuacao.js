@@ -137,7 +137,7 @@ async function calcularPontuacaoRodada(rodadaId) {
     // NÃO ALTERAR STATUS AQUI!!!
 
     await aposta.save();
-    await atualizarEstatisticasUsuario(aposta.usuario);
+  
     totalAtualizadas++;
   }
 
