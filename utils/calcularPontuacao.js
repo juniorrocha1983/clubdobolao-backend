@@ -97,8 +97,15 @@ async function calcularPontuacaoRodada(rodadaId) {
         const resultado = calcularPontosDoJogo(palpiteObj, jogoReal);
 
         // Salvar para depuração futura (não usado no ranking)
-        palpiteObj.pontos = resultado.pontos;
-        palpiteObj.acertou = resultado.acertou;
+       palpiteObj.pontos = resultado.pontos;
+
+             if (resultado.pontos === 5) {
+               palpiteObj.tipoAcerto = "trofeu";
+               } else if (resultado.pontos === 3) {
+               palpiteObj.tipoAcerto = "bola";
+                   } else {
+                           palpiteObj.tipoAcerto = "erro";
+    }
 
         pontosLinha += resultado.pontos;
         if (resultado.acertou) acertosLinha++;
