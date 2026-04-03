@@ -40,38 +40,30 @@ const Aposta = require('../models/Aposta');
 // 🎯 ATUALIZAR ESTATÍSTICAS DO USUÁRIO (Lógica de Soma Total)
 async function atualizarEstatisticasUsuario(userId) {
     try {
+
         const apostas = await Aposta.find({
             usuario: userId,
             status: { $in: ["paga", "brinde", "ativa", "campeao", "finalizada"] }
         });
 
-        const rodadasUnicas = new Set(apostas.map(a => a.rodada.toString()));
+        // 🎯 rodadas únicas
+        const rodadasUnicas = new Set(
+            apostas.map(a => a.rodada?.toString())
+        );
 
-        // 🧮 NOVA LÓGICA DE SOMA TOTAl
-        let pontuacaoTotalAcumulada = 0;
+        // 🎯 quantidade de vitórias (campeão)
+        const vitorias = apostas.filter(a => a.campeaoRodada).length;
 
-        apostas.forEach(aposta => {
-            // Se o seu sistema salva os pontos por linha dentro de 'linhas' ou 'desempenhoDetalhado'
-            // Vamos somar o total daquela cartela específica
-            if (aposta.desempenhoRodada?.pontuacaoRodada) {
-                // Se 'pontuacaoRodada' já for a soma da cartela toda:
-                pontuacaoTotalAcumulada += aposta.desempenhoRodada.pontuacaoRodada;
-            } else if (aposta.linhas && aposta.linhas.length > 0) {
-                // Caso o total não esteja pronto, somamos cada linha da cartela
-                const somaCartela = aposta.linhas.reduce((acc, linha) => acc + (linha.pontos || 0), 0);
-                pontuacaoTotalAcumulada += somaCartela;
-            }
-        });
-
+        // ✅ SALVAR SOMENTE O NECESSÁRIO
         const estatisticas = {
-            rodadasParticipadas: new Set(apostas.map(a => a.rodada.toString())).size,
-            pontuacaoTotal: apostas.reduce((total, aposta) =>
-                total + (aposta.desempenhoRodada?.pontuacaoRodada || 0), 0
-            ),
-            premiosGanhos: apostas.filter(a => a.campeaoRodada).length
+            rodadasParticipadas: rodadasUnicas.size,
+            vitorias: vitorias // 👈 opcional (se quiser mostrar no perfil)
         };
 
-        await User.findByIdAndUpdate(userId, { estatisticas });
+        await User.findByIdAndUpdate(userId, {
+            estatisticas
+        });
+
         return estatisticas;
 
     } catch (error) {
@@ -79,7 +71,6 @@ async function atualizarEstatisticasUsuario(userId) {
         throw error;
     }
 }
-
 
 // 🎯 CALCULAR RANKING GERAL
 async function calcularRankingGeral() {
