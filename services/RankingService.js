@@ -175,7 +175,7 @@ class RankingService {
             }
 
             // 💥 CORREÇÃO AQUI
-            const pontos = a.desempenhoRodada?.pontuacaoRodada || 0;
+            const pontos = a.desempenhoRodada?.pontuacaoTotalCartela || 0;
 
             acumulado[userId].totalPontos += pontos;
 
