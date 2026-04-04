@@ -12,7 +12,7 @@ const { atualizarEstatisticasUsuario } = require("./estatisticas");
 //--------------------------------------------------
 // Função auxiliar — calcula pontos de um palpite
 //--------------------------------------------------
-function calcularPontosDoJogo(palpiteObj, jogoReal) {
+/*function calcularPontosDoJogo(palpiteObj, jogoReal) {
   // Se o jogo não tem placar definido → zero
   if (!jogoReal || jogoReal.placarMandante == null || jogoReal.placarVisitante == null) {
     return { pontos: 0, acertou: false };
@@ -57,8 +57,53 @@ function calcularPontosDoJogo(palpiteObj, jogoReal) {
   }
 
   return { pontos: 0, acertou: false };
-}
+}*/
 
+function calcularPontosDoJogo(palpiteObj, jogoReal) {
+
+  if (!jogoReal || jogoReal.placarMandante == null || jogoReal.placarVisitante == null) {
+    return { pontos: 0, acertou: false, tipo: "X" };
+  }
+
+  let mandante, visitante;
+
+  if (palpiteObj.palpite && typeof palpiteObj.palpite === "string") {
+    const partes = palpiteObj.palpite.replace(/\s+/g, "").split(/[xX-]/);
+    mandante = Number(partes[0]);
+    visitante = Number(partes[1]);
+  } else {
+    mandante = palpiteObj.palpiteMandante ?? null;
+    visitante = palpiteObj.palpiteVisitante ?? null;
+  }
+
+  if (mandante == null || visitante == null) {
+    return { pontos: 0, acertou: false, tipo: "X" };
+  }
+
+  // 🏆 PLACAR EXATO
+  if (
+    mandante === jogoReal.placarMandante &&
+    visitante === jogoReal.placarVisitante
+  ) {
+    return { pontos: 5, acertou: true, tipo: "trofeu" };
+  }
+
+  // ⚽ RESULTADO CORRETO
+  const resultadoPalpite =
+    mandante > visitante ? "C" :
+    mandante < visitante ? "F" : "E";
+
+  const resultadoReal =
+    jogoReal.placarMandante > jogoReal.placarVisitante ? "C" :
+    jogoReal.placarMandante < jogoReal.placarVisitante ? "F" : "E";
+
+  if (resultadoPalpite === resultadoReal) {
+    return { pontos: 3, acertou: true, tipo: "bola" };
+  }
+
+  // ❌ ERROU
+  return { pontos: 0, acertou: false, tipo: "X" };
+}
 
 //--------------------------------------------------
 // 📊 FUNÇÃO PRINCIPAL — CALCULAR A RODADA
@@ -87,6 +132,7 @@ async function calcularPontuacaoRodada(rodadaId) {
   for (const aposta of apostas) {
 
     let melhorLinha = { numero: 1, pontos: 0, acertos: 0 };
+   
 
     aposta.palpites.forEach((linha, indexLinha) => {
       let pontosLinha = 0;
@@ -97,15 +143,9 @@ async function calcularPontuacaoRodada(rodadaId) {
         const resultado = calcularPontosDoJogo(palpiteObj, jogoReal);
 
         // Salvar para depuração futura (não usado no ranking)
-       palpiteObj.pontos = resultado.pontos;
-
-             if (resultado.pontos === 5) {
-               palpiteObj.tipoAcerto = "trofeu";
-               } else if (resultado.pontos === 3) {
-               palpiteObj.tipoAcerto = "bola";
-                   } else {
-                           palpiteObj.tipoAcerto = "erro";
-    }
+        palpiteObj.pontos = resultado.pontos;
+        palpiteObj.acertou = resultado.acertou;
+        palpiteObj.tipo = resultado.tipo; // "trofeu", "bola" ou "X"
 
         pontosLinha += resultado.pontos;
         if (resultado.acertou) acertosLinha++;
@@ -137,7 +177,6 @@ async function calcularPontuacaoRodada(rodadaId) {
     // NÃO ALTERAR STATUS AQUI!!!
 
     await aposta.save();
-  
     totalAtualizadas++;
   }
 
