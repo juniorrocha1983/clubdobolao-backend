@@ -65,7 +65,7 @@ class RankingService {
             let melhorLinha = { numero: 1, pontos: 0, acertos: 0 };
 
             aposta.palpites.forEach((linha, idxLinha) => {
-                let pontos = 0;
+                //let pontos = 0;
 
                 let acertosDetalhado = {
                     placar: 0,    // 🏆
