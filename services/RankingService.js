@@ -62,43 +62,17 @@ class RankingService {
 
         for (const aposta of apostas) {
 
-            let melhorLinha = { numero: 1, pontos: 0, acertos: 0 };
-
-            aposta.palpites.forEach((linha, idxLinha) => {
-                
-
-                let acertosDetalhado = {
-                    placar: 0,    // 🏆
-                    resultado: 0, // ⚽
-                    erro: 0       // ❌
-                };
-
-                linha.jogos.forEach((p, idxJogo) => {
-
-                    const pts = this._pontuar(p, resultados[idxJogo]);
-
-                    pontos += pts;
-
-                    if (pts === 5) {
-                        acertosDetalhado.placar++;
-                    } else if (pts === 3) {
-                        acertosDetalhado.resultado++;
-                    } else {
-                        acertosDetalhado.erro++;
-                    }
-                });
-
-                linha.pontosLinha = pontos;
-                linha.acertos = acertos;
-
-                if (pontos > melhorLinha.pontos) {
-                    melhorLinha = {
-                        numero: idxLinha + 1,
-                        pontos,
-                        acertos: acertosDetalhado
-                    };
-                }
-            });
+        let melhorLinha = {
+            numero: 1,
+            pontos: 0,
+            acertos: { placar: 0, resultado: 0, erro: 0 }
+        };
+let melhorLinha = {
+    numero: 1,
+    pontos: 0,
+    acertos: { placar: 0, resultado: 0, erro: 0 }
+};
+          
             console.log("DEBUG MELHOR LINHA:", melhorLinha);
 
             await Aposta.updateOne(
