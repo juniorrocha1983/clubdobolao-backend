@@ -99,6 +99,7 @@ class RankingService {
                     };
                 }
             });
+            console.log("DEBUG MELHOR LINHA:", melhorLinha);
 
             await Aposta.updateOne(
                 { _id: aposta._id },
