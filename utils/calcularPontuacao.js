@@ -118,6 +118,8 @@ async function calcularPontuacaoRodada(rodadaId) {
       }
     });
 
+  
+
     //--------------------------------------------------
     // Gravar na aposta — APENAS dados de rodada
     //--------------------------------------------------
@@ -127,12 +129,17 @@ async function calcularPontuacaoRodada(rodadaId) {
       melhorLinhaRodada: melhorLinha
     };
 
-    // NÃO ALTERAR STATUS AQUI!!!
+    // 🔥 ADICIONE ESTAS DUAS LINHAS ABAIXO:
+    aposta.markModified('palpites');
+    aposta.markModified('desempenhoRodada');
 
     await aposta.save();
     await atualizarEstatisticasUsuario(aposta.usuario);
     totalAtualizadas++;
-  }
+
+    // NÃO ALTERAR STATUS AQUI!!!
+
+
 
   console.log(`✅ ${totalAtualizadas} apostas atualizadas com pontuação da rodada.`);
 
