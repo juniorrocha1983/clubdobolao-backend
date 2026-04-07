@@ -5,19 +5,16 @@ const User = require('../models/User');
 const RankingRodada = require('../models/RankingRodada');
 const RankingGeral = require('../models/RankingGeral');
 const RankingTorcida = require('../models/RankingTorcida');
-
 const { registrarCampeao } = require("../controllers/campeoesController");
 
 class RankingService {
 
     _extrairPlacar(p) {
         if (!p) return null;
-
         if (typeof p.palpite === "string") {
             const [m, v] = p.palpite.split(/[xX-]/).map(Number);
             return [m, v];
         }
-
         return [
             Number.isFinite(p.palpiteMandante) ? p.palpiteMandante : null,
             Number.isFinite(p.palpiteVisitante) ? p.palpiteVisitante : null
@@ -32,23 +29,15 @@ class RankingService {
 
     _pontuar(palpite, real) {
         if (!real || real.placarMandante == null) return 0;
-
         const p = this._extrairPlacar(palpite);
         if (!p || p[0] == null || p[1] == null) return 0;
-
         const realPlacar = [real.placarMandante, real.placarVisitante];
-
         if (p[0] === realPlacar[0] && p[1] === realPlacar[1]) return 5;
         if (this._resultado(p) === this._resultado(realPlacar)) return 3;
-
         return 0;
     }
 
-    /* ======================================================
-       🏁 RANKING DA RODADA (RANKING DENSO)
-       ====================================================== */
     async atualizarRankingRodada(rodadaId) {
-
         const rodada = await Rodada.findById(rodadaId);
         if (!rodada) throw new Error("Rodada não encontrada");
 
@@ -60,49 +49,42 @@ class RankingService {
         const resultados = rodada.jogos;
         const rankingData = [];
 
-  for (const aposta of apostas) {
-    let melhorLinha = { numero: 1, pontos: 0, acertos: 0 };
+        for (const aposta of apostas) {
+            let melhorLinha = { numero: 1, pontos: 0, acertos: 0 };
 
-    // Percorre cada linha da cartela
-    aposta.palpites.forEach((linha, idxLinha) => {
-        let pontos = 0;
-        let acertos = 0;
+            aposta.palpites.forEach((linha, idxLinha) => {
+                let pontos = 0;
+                let acertos = 0;
 
-        linha.jogos.forEach((p, idxJogo) => {
-            const pts = this._pontuar(p, resultados[idxJogo]);
-            pontos += pts;
-            if (pts > 0) acertos++;
-        });
+                linha.jogos.forEach((p, idxJogo) => {
+                    const pts = this._pontuar(p, resultados[idxJogo]);
+                    pontos += pts;
+                    if (pts > 0) acertos++;
+                });
 
-        // 🔥 CRUCIAL: Salva o valor no objeto da linha antes de dar o update
-        linha.pontosLinha = pontos;
-        linha.acertos = acertos;
+                // Salva os pontos na linha individualmente para o Ranking Geral usar depois
+                linha.pontosLinha = pontos;
+                linha.acertosLinha = acertos; // Ajustado para bater com seu Model Aposta.js
 
-        // Verifica se esta é a melhor linha da cartela do usuário
-        if (pontos > melhorLinha.pontos) {
-            melhorLinha = {
-                numero: idxLinha + 1,
-                pontos,
-                acertos
-            };
-        }
-    });
-
-    // ✅ Agora o update salva o array 'palpites' contendo o 'pontosLinha'
-    await Aposta.updateOne(
-        { _id: aposta._id },
-        {
-            $set: {
-                palpites: aposta.palpites, 
-                desempenhoRodada: {
-                    pontuacaoRodada: melhorLinha.pontos,
-                    acertosRodada: melhorLinha.acertos,
-                    melhorLinhaRodada: melhorLinha
+                if (pontos > melhorLinha.pontos) {
+                    melhorLinha = { numero: idxLinha + 1, pontos, acertos };
                 }
-            }
-        }
-    );
-}
+            });
+
+            // Atualiza a aposta no banco com os pontos calculados em cada linha
+            await Aposta.updateOne(
+                { _id: aposta._id },
+                {
+                    $set: {
+                        palpites: aposta.palpites, 
+                        desempenhoRodada: {
+                            pontuacaoRodada: melhorLinha.pontos,
+                            acertosRodada: melhorLinha.acertos,
+                            melhorLinhaRodada: melhorLinha
+                        }
+                    }
+                }
+            );
 
             rankingData.push({
                 usuarioId: aposta.usuario._id,
@@ -111,18 +93,12 @@ class RankingService {
                 melhorLinha,
                 createdAt: aposta.createdAt
             });
-        }
+        } // <--- AQUI ESTAVA O ERRO DE FECHAMENTO ANTES
 
-        // Ordenação
-        rankingData.sort((a, b) =>
-            b.melhorLinha.pontos - a.melhorLinha.pontos ||
-            a.createdAt - b.createdAt
-        );
+        rankingData.sort((a, b) => b.melhorLinha.pontos - a.melhorLinha.pontos || a.createdAt - b.createdAt);
 
-        // 🔥 Ranking denso (sem pular posição)
         let posicaoAtual = 1;
         let ultimaPontuacao = null;
-
         rankingData.forEach(r => {
             if (ultimaPontuacao !== null && r.melhorLinha.pontos < ultimaPontuacao) {
                 posicaoAtual++;
@@ -148,107 +124,75 @@ class RankingService {
         return rankingData;
     }
 
-/* ======================================================
-   🏆 RANKING GERAL DA TEMPORADA (SOMA TODAS AS LINHAS)
-   ====================================================== */
-async atualizarRankingGeral() {
-    // 1. Busca as apostas no banco
-    const apostas = await Aposta.find({
-        status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
-    })
-    .populate("usuario", "apelido timeCoracao")
-    .populate("rodada");
+    async atualizarRankingGeral() {
+        const apostas = await Aposta.find({
+            status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
+        }).populate("usuario", "apelido timeCoracao").populate("rodada");
 
-    const acumulado = {};
+        const acumulado = {};
 
-    for (const a of apostas) {
-        // 2. Verifica se o usuário existe para evitar erro de 'id'
-        const usuario = a.usuario;
-        if (!usuario || !usuario._id) continue;
+        for (const a of apostas) {
+            const usuario = a.usuario;
+            if (!usuario || !usuario._id) continue;
 
-        const userId = usuario._id.toString();
+            const userId = usuario._id.toString();
 
-        if (!acumulado[userId]) {
-            acumulado[userId] = {
-                usuarioId: userId,
-                apelido: usuario.apelido,
-                timeCoracao: usuario.timeCoracao,
-                totalPontos: 0,
-                rodadasSet: new Set()
-            };
+            if (!acumulado[userId]) {
+                acumulado[userId] = {
+                    usuarioId: userId,
+                    apelido: usuario.apelido,
+                    timeCoracao: usuario.timeCoracao,
+                    totalPontos: 0,
+                    rodadasSet: new Set()
+                };
+            }
+
+            // SOMA TODAS AS LINHAS DA CARTELA
+            const somaCartela = (a.palpites || []).reduce((total, linha) => total + (linha.pontosLinha || 0), 0);
+            acumulado[userId].totalPontos += somaCartela;
+
+            if (a.rodada?._id) {
+                acumulado[userId].rodadasSet.add(a.rodada._id.toString());
+            }
         }
 
-        // 3. SEGURANÇA: Verifica se 'palpites' existe antes de usar o reduce
-        // Se 'palpites' for undefined, ele assume um array vazio [] e a soma será 0
-        const palpites = a.palpites || [];
-        
-        const somaCartela = palpites.reduce(
-            (total, linha) => total + (linha.pontosLinha || 0), 
-            0
-        );
+        const ranking = Object.values(acumulado)
+            .map(user => ({
+                usuarioId: user.usuarioId,
+                apelido: user.apelido,
+                timeCoracao: user.timeCoracao,
+                totalPontos: user.totalPoints || user.totalPontos, // Garantia de nome de campo
+                totalApostas: user.rodadasSet.size
+            }))
+            .sort((a, b) => b.totalPontos - a.totalPontos)
+            .map((user, index) => ({ ...user, posicao: index + 1 }));
 
-        acumulado[userId].totalPontos += somaCartela;
-
-        if (a.rodada?._id) {
-            acumulado[userId].rodadasSet.add(a.rodada._id.toString());
+        if (ranking.length > 0) {
+            await RankingGeral.deleteMany({});
+            await RankingGeral.insertMany(ranking);
         }
+        return ranking;
     }
 
-    // 4. Converte o objeto acumulado para array e ordena
-    const ranking = Object.values(acumulado)
-        .map(user => ({
-            usuarioId: user.usuarioId,
-            apelido: user.apelido,
-            timeCoracao: user.timeCoracao,
-            totalPontos: user.totalPontos,
-            totalApostas: user.rodadasSet.size
-        }))
-        .sort((a, b) => b.totalPontos - a.totalPontos)
-        .map((user, index) => ({
-            ...user,
-            posicao: index + 1
-        }));
-
-    // 5. Limpa o ranking antigo e insere o novo
-    if (ranking.length > 0) {
-        await RankingGeral.deleteMany({});
-        await RankingGeral.insertMany(ranking);
-    }
-
-    return ranking;
-}
-
-    /* ======================================================
-       ⚽ RANKING DE TORCIDAS
-       ====================================================== */
     async atualizarRankingTorcida() {
         const usuarios = await User.find({}, "timeCoracao").lean();
         const contagem = {};
-
         usuarios.forEach(u => {
             const time = u.timeCoracao?.trim() || "Sem time";
             contagem[time] = (contagem[time] || 0) + 1;
         });
-
         const total = Object.values(contagem).reduce((a, b) => a + b, 0);
-
-        const dados = Object.entries(contagem)
-            .map(([time, qtd]) => ({
-                time,
-                torcedores: qtd,
-                porcentagem: total ? (qtd / total * 100).toFixed(1) : "0.0"
-            }))
-            .sort((a, b) => b.torcedores - a.torcedores);
+        const dados = Object.entries(contagem).map(([time, qtd]) => ({
+            time,
+            torcedores: qtd,
+            porcentagem: total ? (qtd / total * 100).toFixed(1) : "0.0"
+        })).sort((a, b) => b.torcedores - a.torcedores);
 
         await RankingTorcida.deleteMany({});
         await RankingTorcida.insertMany(dados);
-
         return dados;
     }
 
-    /* ======================================================
-       🚀 EXECUTA TUDO
-       ====================================================== */
     async atualizarTudo(rodadaId) {
         await this.atualizarRankingRodada(rodadaId);
         await this.atualizarRankingGeral();
