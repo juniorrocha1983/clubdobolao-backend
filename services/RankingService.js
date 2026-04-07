@@ -152,6 +152,7 @@ class RankingService {
    🏆 RANKING GERAL DA TEMPORADA (SOMA TODAS AS LINHAS)
    ====================================================== */
 async atualizarRankingGeral() {
+    // 1. Busca as apostas no banco
     const apostas = await Aposta.find({
         status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
     })
@@ -161,8 +162,9 @@ async atualizarRankingGeral() {
     const acumulado = {};
 
     for (const a of apostas) {
+        // 2. Verifica se o usuário existe para evitar erro de 'id'
         const usuario = a.usuario;
-        if (!usuario) continue;
+        if (!usuario || !usuario._id) continue;
 
         const userId = usuario._id.toString();
 
@@ -176,9 +178,11 @@ async atualizarRankingGeral() {
             };
         }
 
-        // 🔥 SUBSTITUIÇÃO AQUI:
-        // Em vez de pegar apenas a melhor linha, somamos o pontosLinha de cada palpite
-        const somaCartela = (a.palpites || []).reduce(
+        // 3. SEGURANÇA: Verifica se 'palpites' existe antes de usar o reduce
+        // Se 'palpites' for undefined, ele assume um array vazio [] e a soma será 0
+        const palpites = a.palpites || [];
+        
+        const somaCartela = palpites.reduce(
             (total, linha) => total + (linha.pontosLinha || 0), 
             0
         );
@@ -190,7 +194,7 @@ async atualizarRankingGeral() {
         }
     }
 
-    // 🔢 Converte para array e finaliza dados (o restante permanece igual)
+    // 4. Converte o objeto acumulado para array e ordena
     const ranking = Object.values(acumulado)
         .map(user => ({
             usuarioId: user.usuarioId,
@@ -205,12 +209,14 @@ async atualizarRankingGeral() {
             posicao: index + 1
         }));
 
-    await RankingGeral.deleteMany({});
-    await RankingGeral.insertMany(ranking);
+    // 5. Limpa o ranking antigo e insere o novo
+    if (ranking.length > 0) {
+        await RankingGeral.deleteMany({});
+        await RankingGeral.insertMany(ranking);
+    }
 
     return ranking;
 }
-
 
     /* ======================================================
        ⚽ RANKING DE TORCIDAS
