@@ -147,8 +147,7 @@ class RankingService {
     /* ======================================================
        🏆 RANKING GERAL DA TEMPORADA
        ====================================================== */
-   async atualizarRankingGeral() {
-
+ async atualizarRankingGeral() {
     const apostas = await Aposta.find({
         status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
     })
@@ -158,7 +157,6 @@ class RankingService {
     const acumulado = {};
 
     for (const a of apostas) {
-
         const usuario = a.usuario;
         if (!usuario) continue;
 
@@ -170,19 +168,16 @@ class RankingService {
                 apelido: usuario.apelido,
                 timeCoracao: usuario.timeCoracao,
                 totalPontos: 0,
-                rodadasSet: new Set() // 👈 controla rodadas únicas
+                rodadasSet: new Set()
             };
         }
 
-        // 🔥 SOMA REAL DA CARTELA (todas as linhas)
-        const somaCartela = (a.palpites || []).reduce(
-            (soma, linha) => soma + (linha.pontosLinha || 0),
-            0
-        );
+        // ✅ CORREÇÃO: Pega apenas a pontuação da MELHOR LINHA daquela rodada
+        // que você já calculou e salvou no método atualizarRankingRodada
+        const pontosGanhos = a.desempenhoRodada?.pontuacaoRodada || 0;
 
-        acumulado[userId].totalPontos += somaCartela;
+        acumulado[userId].totalPontos += pontosGanhos;
 
-        // 👇 Marca a rodada como participada
         if (a.rodada?._id) {
             acumulado[userId].rodadasSet.add(a.rodada._id.toString());
         }
