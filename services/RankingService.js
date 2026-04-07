@@ -60,45 +60,49 @@ class RankingService {
         const resultados = rodada.jogos;
         const rankingData = [];
 
-        for (const aposta of apostas) {
+  for (const aposta of apostas) {
+    let melhorLinha = { numero: 1, pontos: 0, acertos: 0 };
 
-            let melhorLinha = { numero: 1, pontos: 0, acertos: 0 };
+    // Percorre cada linha da cartela
+    aposta.palpites.forEach((linha, idxLinha) => {
+        let pontos = 0;
+        let acertos = 0;
 
-            aposta.palpites.forEach((linha, idxLinha) => {
-                let pontos = 0;
-                let acertos = 0;
+        linha.jogos.forEach((p, idxJogo) => {
+            const pts = this._pontuar(p, resultados[idxJogo]);
+            pontos += pts;
+            if (pts > 0) acertos++;
+        });
 
-                linha.jogos.forEach((p, idxJogo) => {
-                    const pts = this._pontuar(p, resultados[idxJogo]);
-                    pontos += pts;
-                    if (pts > 0) acertos++;
-                });
+        // 🔥 CRUCIAL: Salva o valor no objeto da linha antes de dar o update
+        linha.pontosLinha = pontos;
+        linha.acertos = acertos;
 
-                linha.pontosLinha = pontos;
-                linha.acertos = acertos;
+        // Verifica se esta é a melhor linha da cartela do usuário
+        if (pontos > melhorLinha.pontos) {
+            melhorLinha = {
+                numero: idxLinha + 1,
+                pontos,
+                acertos
+            };
+        }
+    });
 
-                if (pontos > melhorLinha.pontos) {
-                    melhorLinha = {
-                        numero: idxLinha + 1,
-                        pontos,
-                        acertos
-                    };
+    // ✅ Agora o update salva o array 'palpites' contendo o 'pontosLinha'
+    await Aposta.updateOne(
+        { _id: aposta._id },
+        {
+            $set: {
+                palpites: aposta.palpites, 
+                desempenhoRodada: {
+                    pontuacaoRodada: melhorLinha.pontos,
+                    acertosRodada: melhorLinha.acertos,
+                    melhorLinhaRodada: melhorLinha
                 }
-            });
-
-            await Aposta.updateOne(
-                { _id: aposta._id },
-                {
-                    $set: {
-                        palpites: aposta.palpites,
-                        desempenhoRodada: {
-                            pontuacaoRodada: melhorLinha.pontos,
-                            acertosRodada: melhorLinha.acertos,
-                            melhorLinhaRodada: melhorLinha
-                        }
-                    }
-                }
-            );
+            }
+        }
+    );
+}
 
             rankingData.push({
                 usuarioId: aposta.usuario._id,
