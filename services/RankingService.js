@@ -123,35 +123,46 @@ class RankingService {
         return rankingData;
     }
 
-    async atualizarRankingGeral() {
+ async atualizarRankingGeral() {
         const apostas = await Aposta.find({
             status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
-        }).populate("usuario", "apelido timeCoracao").populate("rodada");
+        }).populate("usuario", "apelido timeCoracao");
 
         const acumulado = {};
 
         for (const a of apostas) {
-            const usuario = a.usuario;
-            if (!usuario || !usuario._id) continue;
-
-            const userId = usuario._id.toString();
+            if (!a.usuario || !a.usuario._id) continue;
+            const userId = a.usuario._id.toString();
 
             if (!acumulado[userId]) {
                 acumulado[userId] = {
                     usuarioId: userId,
-                    apelido: usuario.apelido,
-                    timeCoracao: usuario.timeCoracao,
+                    apelido: a.usuario.apelido,
+                    timeCoracao: a.usuario.timeCoracao,
                     totalPontos: 0,
                     rodadasSet: new Set()
                 };
             }
 
-            // SOMA TODAS AS LINHAS DA CARTELA
-            const somaCartela = (a.palpites || []).reduce((total, linha) => total + (linha.pontosLinha || 0), 0);
+            // 🚀 RECALCULO DE SEGURANÇA: 
+            // Se pontosLinha for undefined, ele tenta buscar de desempenhoRodada
+            let somaCartela = 0;
+            if (a.palpites && a.palpites.length > 0) {
+                somaCartela = a.palpites.reduce((total, linha) => {
+                    return total + (Number(linha.pontosLinha) || 0);
+                }, 0);
+            }
+
+            // Se a soma das linhas deu 0, mas a melhor linha tem pontos, usa o ponto da melhor linha
+            // Isso evita que o ranking fique zerado enquanto o banco não atualiza os palpites
+            if (somaCartela === 0 && a.desempenhoRodada?.pontuacaoRodada > 0) {
+                somaCartela = a.desempenhoRodada.pontuacaoRodada;
+            }
+
             acumulado[userId].totalPontos += somaCartela;
 
-            if (a.rodada?._id) {
-                acumulado[userId].rodadasSet.add(a.rodada._id.toString());
+            if (a.rodada) {
+                acumulado[userId].rodadasSet.add(a.rodada.toString());
             }
         }
 
@@ -160,7 +171,7 @@ class RankingService {
                 usuarioId: user.usuarioId,
                 apelido: user.apelido,
                 timeCoracao: user.timeCoracao,
-                totalPontos: user.totalPoints || user.totalPontos, // Garantia de nome de campo
+                totalPontos: user.totalPontos, // Corrigido: removido o totalPoints que não existia
                 totalApostas: user.rodadasSet.size
             }))
             .sort((a, b) => b.totalPontos - a.totalPontos)
@@ -172,7 +183,6 @@ class RankingService {
         }
         return ranking;
     }
-
     async atualizarRankingTorcida() {
         const usuarios = await User.find({}, "timeCoracao").lean();
         const contagem = {};
