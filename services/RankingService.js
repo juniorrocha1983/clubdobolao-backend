@@ -48,10 +48,10 @@ class RankingService {
 
         const resultados = rodada.jogos;
         const rankingData = [];
-
         for (const aposta of apostas) {
             let melhorLinha = { numero: 1, pontos: 0, acertos: 0 };
 
+            // 1. Calcula a pontuação de cada linha
             aposta.palpites.forEach((linha, idxLinha) => {
                 let pontos = 0;
                 let acertos = 0;
@@ -62,30 +62,30 @@ class RankingService {
                     if (pts > 0) acertos++;
                 });
 
-                // Salva os pontos na linha individualmente para o Ranking Geral usar depois
-                linha.pontosLinha = pontos;
-                linha.acertosLinha = acertos; // Ajustado para bater com seu Model Aposta.js
+                // 🔥 Grava os valores em cada linha individualmente
+                linha.pontosLinha = Number(pontos);
+                linha.acertosLinha = Number(acertos);
 
                 if (pontos > melhorLinha.pontos) {
                     melhorLinha = { numero: idxLinha + 1, pontos, acertos };
                 }
             });
 
-            // Atualiza a aposta no banco com os pontos calculados em cada linha
-            await Aposta.updateOne(
-                { _id: aposta._id },
-                {
-                    $set: {
-                        palpites: aposta.palpites, 
-                        desempenhoRodada: {
-                            pontuacaoRodada: melhorLinha.pontos,
-                            acertosRodada: melhorLinha.acertos,
-                            melhorLinhaRodada: melhorLinha
-                        }
-                    }
-                }
-            );
+            // 2. Atualiza os dados da melhor linha da rodada
+            aposta.desempenhoRodada = {
+                pontuacaoRodada: melhorLinha.pontos,
+                acertosRodada: melhorLinha.acertos,
+                melhorLinhaRodada: melhorLinha
+            };
 
+            // 3. 🚀 O SEGREDO: Avisa o Mongoose que o array de palpites foi alterado
+            aposta.markModified('palpites');
+            aposta.markModified('desempenhoRodada');
+
+            // 4. Salva a aposta atualizada
+            await aposta.save();
+
+            // 5. Alimenta o array do ranking que será exibido
             rankingData.push({
                 usuarioId: aposta.usuario._id,
                 apelido: aposta.usuario.apelido,
@@ -93,8 +93,7 @@ class RankingService {
                 melhorLinha,
                 createdAt: aposta.createdAt
             });
-        } // <--- AQUI ESTAVA O ERRO DE FECHAMENTO ANTES
-
+        }
         rankingData.sort((a, b) => b.melhorLinha.pontos - a.melhorLinha.pontos || a.createdAt - b.createdAt);
 
         let posicaoAtual = 1;
