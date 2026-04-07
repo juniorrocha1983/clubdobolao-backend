@@ -148,10 +148,10 @@ class RankingService {
         return rankingData;
     }
 
-    /* ======================================================
-       🏆 RANKING GERAL DA TEMPORADA
-       ====================================================== */
- async atualizarRankingGeral() {
+/* ======================================================
+   🏆 RANKING GERAL DA TEMPORADA (SOMA TODAS AS LINHAS)
+   ====================================================== */
+async atualizarRankingGeral() {
     const apostas = await Aposta.find({
         status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
     })
@@ -176,25 +176,28 @@ class RankingService {
             };
         }
 
-        // ✅ CORREÇÃO: Pega apenas a pontuação da MELHOR LINHA daquela rodada
-        // que você já calculou e salvou no método atualizarRankingRodada
-        const pontosGanhos = a.desempenhoRodada?.pontuacaoRodada || 0;
+        // 🔥 SUBSTITUIÇÃO AQUI:
+        // Em vez de pegar apenas a melhor linha, somamos o pontosLinha de cada palpite
+        const somaCartela = (a.palpites || []).reduce(
+            (total, linha) => total + (linha.pontosLinha || 0), 
+            0
+        );
 
-        acumulado[userId].totalPontos += pontosGanhos;
+        acumulado[userId].totalPontos += somaCartela;
 
         if (a.rodada?._id) {
             acumulado[userId].rodadasSet.add(a.rodada._id.toString());
         }
     }
 
-    // 🔢 Converte para array e finaliza dados
+    // 🔢 Converte para array e finaliza dados (o restante permanece igual)
     const ranking = Object.values(acumulado)
         .map(user => ({
             usuarioId: user.usuarioId,
             apelido: user.apelido,
             timeCoracao: user.timeCoracao,
             totalPontos: user.totalPontos,
-            totalApostas: user.rodadasSet.size // 👈 rodadas participadas
+            totalApostas: user.rodadasSet.size
         }))
         .sort((a, b) => b.totalPontos - a.totalPontos)
         .map((user, index) => ({
@@ -202,7 +205,6 @@ class RankingService {
             posicao: index + 1
         }));
 
-    // 🔄 Atualiza coleção
     await RankingGeral.deleteMany({});
     await RankingGeral.insertMany(ranking);
 
