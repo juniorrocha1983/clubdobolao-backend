@@ -3,7 +3,7 @@ const User = require('../models/User');
 const Aposta = require('../models/Aposta');
 
 // 🎯 ATUALIZAR ESTATÍSTICAS DO USUÁRIO
-/*async function atualizarEstatisticasUsuario(userId) {
+async function atualizarEstatisticasUsuario(userId) {
     try {
         const apostas = await Aposta.find({
             usuario: userId,
@@ -35,21 +35,9 @@ const Aposta = require('../models/Aposta');
         console.error('Erro ao atualizar estatísticas:', error);
         throw error;
     }
-}*/
-
-// 🎯 ATUALIZAR ESTATÍSTICAS DO USUÁRIO (Lógica de Soma Total)
-function atualizarEstatisticas(estatisticas) {
-    // Se o backend enviar dados extras de vitórias ou participações, usamos aqui
-    const elementos = {
-        'participações': estatisticas.rodadasParticipadas || 0,
-        'vitorias': estatisticas.vitorias || 0
-    };
-
-    for (const [id, valor] of Object.entries(elementos)) {
-        const elemento = document.getElementById(id);
-        if (elemento) elemento.textContent = valor;
-    }
 }
+
+
 
 
 // 🎯 CALCULAR RANKING GERAL
