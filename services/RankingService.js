@@ -123,6 +123,78 @@ class RankingService {
         return rankingData;
     }
 
+    async atualizarRankingGeral() {
+    console.log("🚀 Iniciando recalculo TOTAL do Ranking Geral...");
+    
+    // 1. Busca todas as rodadas para ter os placares reais
+    const rodadas = await Rodada.find({}).lean();
+    const mapaRodadas = {};
+    rodadas.forEach(r => { 
+        mapaRodadas[r._id.toString()] = r.jogos; 
+    });
+
+    // 2. Busca todas as apostas válidas
+    const apostas = await Aposta.find({
+        status: { $in: ["ativa", "paga", "finalizada", "brinde", "campeao"] }
+    }).populate("usuario", "apelido timeCoracao");
+
+    const acumulado = {};
+
+    for (const a of apostas) {
+        if (!a.usuario || !a.usuario._id) continue;
+        const userId = a.usuario._id.toString();
+        const jogosReais = mapaRodadas[a.rodada?.toString()];
+
+        if (!jogosReais) continue;
+
+        if (!acumulado[userId]) {
+            acumulado[userId] = {
+                usuarioId: userId,
+                apelido: a.usuario.apelido,
+                timeCoracao: a.usuario.timeCoracao,
+                totalPontos: 0,
+                rodadasSet: new Set()
+            };
+        }
+
+        // 🚀 SOMA TODAS AS LINHAS DA CARTELA (FORÇA BRUTA)
+        let pontosDestaCartela = 0;
+        if (a.palpites && a.palpites.length > 0) {
+            a.palpites.forEach(linha => {
+                linha.jogos.forEach((palpite, idx) => {
+                    const jogoReal = jogosReais[idx];
+                    if (jogoReal && jogoReal.placarMandante != null) {
+                        pontosDestaCartela += this._pontuar(palpite, jogoReal);
+                    }
+                });
+            });
+        }
+
+        acumulado[userId].totalPontos += pontosDestaCartela;
+        if (a.rodada) acumulado[userId].rodadasSet.add(a.rodada.toString());
+    }
+
+    // 3. Formata e Ordena
+    const ranking = Object.values(acumulado)
+        .map(user => ({
+            usuarioId: user.usuarioId,
+            apelido: user.apelido,
+            timeCoracao: user.timeCoracao,
+            totalPontos: user.totalPontos,
+            totalApostas: user.rodadasSet.size
+        }))
+        .sort((a, b) => b.totalPontos - a.totalPontos)
+        .map((user, index) => ({ ...user, posicao: index + 1 }));
+
+    if (ranking.length > 0) {
+        await RankingGeral.deleteMany({});
+        await RankingGeral.insertMany(ranking);
+    }
+
+    console.log(`✅ Ranking Geral atualizado. Líder: ${ranking[0]?.apelido} com ${ranking[0]?.totalPontos} pts.`);
+    return ranking;
+}
+
 
     async atualizarRankingTorcida() {
         const usuarios = await User.find({}, "timeCoracao").lean();
