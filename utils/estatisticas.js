@@ -38,39 +38,19 @@ const Aposta = require('../models/Aposta');
 }*/
 
 // 🎯 ATUALIZAR ESTATÍSTICAS DO USUÁRIO (Lógica de Soma Total)
-async function atualizarEstatisticasUsuario(userId) {
-    try {
+function atualizarEstatisticas(estatisticas) {
+    // Se o backend enviar dados extras de vitórias ou participações, usamos aqui
+    const elementos = {
+        'participações': estatisticas.rodadasParticipadas || 0,
+        'vitorias': estatisticas.vitorias || 0
+    };
 
-        const apostas = await Aposta.find({
-            usuario: userId,
-            status: { $in: ["paga", "brinde", "ativa", "campeao", "finalizada"] }
-        });
-
-        // 🎯 rodadas únicas
-        const rodadasUnicas = new Set(
-            apostas.map(a => a.rodada?.toString())
-        );
-
-        // 🎯 quantidade de vitórias (campeão)
-        const vitorias = apostas.filter(a => a.campeaoRodada).length;
-
-        // ✅ SALVAR SOMENTE O NECESSÁRIO
-        const estatisticas = {
-            rodadasParticipadas: rodadasUnicas.size,
-            vitorias: vitorias // 👈 opcional (se quiser mostrar no perfil)
-        };
-
-        await User.findByIdAndUpdate(userId, {
-            estatisticas
-        });
-
-        return estatisticas;
-
-    } catch (error) {
-        console.error('Erro ao atualizar estatísticas:', error);
-        throw error;
+    for (const [id, valor] of Object.entries(elementos)) {
+        const elemento = document.getElementById(id);
+        if (elemento) elemento.textContent = valor;
     }
 }
+
 
 // 🎯 CALCULAR RANKING GERAL
 async function calcularRankingGeral() {
