@@ -3,7 +3,6 @@ const Campeao = require("../models/Campeao");
 const Aposta = require("../models/Aposta");
 const Rodada = require("../models/Rodada");
 
-
 /* ============================================================
    🏆 REGISTRAR CAMPEÃO(ÕES) DA RODADA
    ============================================================ */
@@ -60,32 +59,62 @@ const registrarCampeao = async (rodadaId) => {
             }
         }
 
-        // 🏁 4. Maior pontuação da rodada
-        const maiorPontuacao = Math.max(
-            ...apostas.map(a => a.desempenhoRodada.pontuacaoRodada)
-        );
+        // 👑 4. Definir campeões conforme o tipo da rodada
+        let campeoes = [];
 
-        // 👑 5. Filtrar campeões (empate permitido)
-        const campeoes = apostas.filter(
-            a => a.desempenhoRodada.pontuacaoRodada === maiorPontuacao
-        );
+        if (rodada.tipo === "brinde") {
+            // 🎁 Rodada brinde: somente quem atingir 20 pontos recebe premiação
+            campeoes = apostas.filter(
+                a => a.desempenhoRodada.pontuacaoRodada === 20
+            );
+
+            console.log(
+                `🎁 Rodada brinde: ${campeoes.length} participante(s) atingiram 20 pontos`
+            );
+        } else {
+            // 🏆 Rodada paga: maior pontuação da rodada (empates permitidos)
+            const maiorPontuacao = Math.max(
+                ...apostas.map(a => a.desempenhoRodada.pontuacaoRodada)
+            );
+
+            campeoes = apostas.filter(
+                a => a.desempenhoRodada.pontuacaoRodada === maiorPontuacao
+            );
+
+            console.log(
+                `🏆 Rodada paga: ${campeoes.length} campeão(ões) encontrados`
+            );
+        }
+
+        // 🚫 Ninguém atingiu a condição de premiação
+        if (campeoes.length === 0) {
+            console.log(
+                "🎁 Nenhum participante atingiu a pontuação necessária para premiação."
+            );
+
+            rodada.campeaoRodada = [];
+            await rodada.save();
+            return;
+        }
 
         console.log(`🏆 Encontrados ${campeoes.length} campeão(ões)`);
 
-        // 🎁 Define tipo de prêmio automaticamente:
-        // BRINDE → rodada.tipo = "brinde"
-        // PIX → rodada.tipo = "paga"
-        const tipoPremioRodada =
-            rodada.tipo === "brinde" ? "brinde" : "pix";
+        // 🎁 Define tipo de prêmio automaticamente
+        const tipoPremioRodada = rodada.tipo === "brinde" ? "brinde" : "pix";
 
         for (const c of campeoes) {
-
             // 🔄 Atualiza aposta do campeão
-            await Aposta.updateOne({ _id: c._id }, { status: "campeao" });
+            await Aposta.updateOne(
+                { _id: c._id },
+                { status: "campeao" }
+            );
 
             // 🏆 Criar/atualizar registro
             await Campeao.findOneAndUpdate(
-                { usuario: c.usuario?._id, rodada: rodadaId },
+                {
+                    usuario: c.usuario?._id,
+                    rodada: rodadaId
+                },
                 {
                     usuario: c.usuario?._id,
                     rodada: rodadaId,
@@ -94,19 +123,19 @@ const registrarCampeao = async (rodadaId) => {
                     pontuacao: c.desempenhoRodada.pontuacaoRodada,
                     acertos: c.desempenhoRodada.acertosRodada,
                     linhaVencedora: c.desempenhoRodada.melhorLinhaRodada.numero,
-
-                    // ⭐ ⭐ AQUI ESTÁ A CORREÇÃO ⭐ ⭐
                     tipoPremio: tipoPremioRodada,
-
                     statusPremio: "pendente",
                     dataSolicitacao: null,
                     dataPagamento: null
                 },
-                { upsert: true, new: true }
+                {
+                    upsert: true,
+                    new: true
+                }
             );
         }
 
-        // 🔄 6. Salva campeões dentro da rodada
+        // 🔄 Salva campeões dentro da rodada
         rodada.campeaoRodada = campeoes.map(c => ({
             usuario: c.usuario._id,
             aposta: c._id,
@@ -117,14 +146,12 @@ const registrarCampeao = async (rodadaId) => {
         }));
 
         await rodada.save();
-
         console.log("✔ Campeões registrados com sucesso.");
 
-    } catch (err) {
-        console.error("❌ Erro ao registrar campeões:", err);
+    } catch (error) {
+        console.error("❌ Erro ao registrar campeão:", error);
     }
 };
-
 
 /* ============================================================
    📌 LISTAR CAMPEÕES (ADMIN)
@@ -142,7 +169,6 @@ const listarCampeoes = async (req, res) => {
     }
 };
 
-
 /* ============================================================
    📌 BUSCAR POR RODADA
    ============================================================ */
@@ -157,7 +183,6 @@ const buscarPorRodada = async (req, res) => {
     }
 };
 
-
 /* ============================================================
    📌 BUSCAR POR USUÁRIO
    ============================================================ */
@@ -171,7 +196,6 @@ const buscarPorUsuario = async (req, res) => {
         res.status(500).json({ error: "Erro ao buscar campeões do usuário" });
     }
 };
-
 
 /* ============================================================
    📌 LISTAGEM PÚBLICA (GALERIA)
@@ -189,13 +213,12 @@ const listarPublicamente = async (req, res) => {
             nome: c.apelido || c.usuario?.apelido || "Desconhecido",
             pontos: c.pontuacao || 0,
             imagem: c.usuario?.imagem || null,
-            tipoPremio: c.tipoPremio, // ⭐ IMPORTANTE PARA O FRONT
-            time:
-                c.usuario?.timeCoracao
-                    ?.normalize("NFD")
-                    .replace(/[\u0300-\u036f]/g, "")
-                    .replace(/\s+/g, "-")
-                    .toLowerCase() || "default",
+            tipoPremio: c.tipoPremio, 
+            time: c.usuario?.timeCoracao
+                ?.normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/\s+/g, "-")
+                .toLowerCase() || "default",
         }));
 
         res.json(resposta);
