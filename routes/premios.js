@@ -58,55 +58,6 @@ router.post("/solicitar-brinde", auth, async (req, res) => {
 });
 
 
-/*router.post("/solicitar", auth, async (req, res) => {
-    try {
-        const { campeaoId, tipoPix, chavePix, nomeDestinatario } = req.body;
-        const userId = req.user.id;
-
-        if (!campeaoId || !tipoPix || !chavePix || !nomeDestinatario) {
-            return res.status(400).json({ error: "Dados incompletos." });
-        }
-
-        const camp = await Campeao.findById(campeaoId)
-            .populate("usuario", "_id");
-
-        if (!camp)
-            return res.status(404).json({ error: "Registro de campeão não encontrado." });
-
-        if (!camp.usuario || camp.usuario._id.toString() !== userId.toString()) {
-            return res.status(403).json({ error: "Você não pode solicitar prêmio de outro usuário." });
-        }
-
-        if (camp.statusPremio === "pago") {
-            return res.status(400).json({ error: "Este prêmio já foi pago anteriormente." });
-        }
-
-        if (camp.statusPremio === "solicitado") {
-            return res.status(400).json({ error: "Você já solicitou este prêmio." });
-        }
-
-        camp.statusPremio = "solicitado";
-        camp.tipoPremio = "pix";
-        camp.tipoPix = tipoPix;
-        camp.chavePix = chavePix;
-        camp.nomeDestinatario = nomeDestinatario; // 🟢 SALVANDO O NOME DA CONTA
-        camp.dataSolicitacao = new Date();
-
-        await camp.save();
-
-        return res.json({
-            sucesso: true,
-            message: "Solicitação enviada com sucesso!",
-            campeao: camp
-        });
-
-    } catch (err) {
-        console.error("❌ ERRO PIX PREMIO:", err);
-        return res.status(500).json({ error: "Erro ao solicitar prêmio." });
-    }
-});
-*/
-
 router.post("/solicitar", auth, async (req, res) => {
     try {
 
@@ -124,7 +75,8 @@ router.post("/solicitar", auth, async (req, res) => {
             !campeaoId ||
             !tipoPix ||
             !chavePix ||
-            !nomeDestinatario
+            !nomeDestinatario ||
+            !telefoneContato
         ) {
             return res.status(400).json({
                 error: "Dados incompletos."
