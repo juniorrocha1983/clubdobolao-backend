@@ -43,8 +43,7 @@ const CampeaoSchema = new mongoose.Schema({
 
     tipoPix: { type: String, default: null },
     chavePix: { type: String, default: null },
-    tipoPix: { type: String, default: null },
-    chavePix: { type: String, default: null },
+    
 
     // 🟢 ADICIONE AQUI
     nomeDestinatario: { type: String, default: null },
